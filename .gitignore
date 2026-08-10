@@ -3,26 +3,22 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Virtual Environment
+# Virtual environment
+.venv/
 venv/
-.env/
+env/
 
-# VS Code
+# Environment variables / secrets
+.env
+.env.*
+
+# IDE
 .vscode/
 
 # Logs
-logs/
 *.log
+logs/
 
-# Secrets
-.env
-
-# Memory
-data/memory.json
-
-# Windows
+# OS
+.DS_Store
 Thumbs.db
-Desktop.ini
-
-# Python Cache
-.pytest_cache/
