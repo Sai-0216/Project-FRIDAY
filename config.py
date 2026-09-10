@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 class Config:
+
     APP_NAME = "FRIDAY"
     VERSION = "1.0.0"
 
@@ -20,6 +21,13 @@ class Config:
     SPEECH_VOLUME = 1.0
 
     WAKE_WORD = "friday"
+
+    # -----------------------------
+    # AI Models
+    # -----------------------------
+
+    CONVERSATION_MODEL = "llama3.2:latest"
+    VISION_MODEL = "moondream"
 
 
 config = Config()

@@ -3,6 +3,7 @@ Project FRIDAY
 Command Manager
 """
 
+
 class CommandManager:
 
     def __init__(self):
@@ -11,55 +12,157 @@ class CommandManager:
         self.prefix = {}
         self.intent = {}
 
-    # -------------------------
-    # Exact Commands
-    # -------------------------
+    # ========================================
+    # EXACT COMMANDS
+    # ========================================
 
-    def register_exact(self, command, function):
-        self.exact[command] = function
+    def register_exact(
+        self,
+        command,
+        function
+    ):
 
-    # -------------------------
-    # Prefix Commands
-    # -------------------------
+        command = str(
+            command
+        ).strip().lower()
 
-    def register_prefix(self, prefix, function):
-        self.prefix[prefix] = function
+        self.exact[
+            command
+        ] = function
 
-    # -------------------------
-    # Intent Commands
-    # -------------------------
+    # ========================================
+    # PREFIX COMMANDS
+    # ========================================
 
-    def register_intent(self, intent, function):
-        self.intent[intent] = function
+    def register_prefix(
+        self,
+        prefix,
+        function
+    ):
 
-    # -------------------------
-    # Execute
-    # -------------------------
+        prefix = str(
+            prefix
+        ).lower()
 
-    def execute(self, command):
+        self.prefix[
+            prefix
+        ] = function
 
-        command = command.strip().lower()
+    # ========================================
+    # INTENT COMMANDS
+    # ========================================
 
-        print(f"Command received: '{command}'")
+    def register_intent(
+        self,
+        intent,
+        function
+    ):
 
-        # Exact
+        self.intent[
+            intent
+        ] = function
+
+    # ========================================
+    # EXECUTE
+    # ========================================
+
+    def execute(
+        self,
+        command
+    ):
+
+        command = str(
+            command
+        ).strip().lower()
+
+        print(
+            f"Command received: '{command}'"
+        )
+
+        # ========================================
+        # EXACT COMMAND
+        # ========================================
+
         if command in self.exact:
 
-            return self.exact[command]()
+            return self.exact[
+                command
+            ]()
 
-        # Prefix
-        for prefix, function in self.prefix.items():
+        # ========================================
+        # PREFIX COMMAND
+        # ========================================
+        #
+        # IMPORTANT:
+        # Check the LONGEST prefix first.
+        #
+        # Example:
+        #
+        # search google for java
+        #
+        # matches:
+        #
+        # search
+        # search google
+        #
+        # The more specific prefix wins.
+        # ========================================
 
-            if command.startswith(prefix):
+        matching_prefixes = [
 
-                argument = command[len(prefix):].strip()
+            prefix
+            for prefix in self.prefix
+            if command.startswith(prefix)
+        ]
 
-                print(f"Prefix: {prefix}"
-                       )
-                print(f"Argument: '{argument}'")
+        matching_prefixes.sort(
+            key=len,
+            reverse=True
+        )
 
-                return function(argument)
-        print("No command matched.")    
+        for prefix in matching_prefixes:
+
+            function = self.prefix[
+                prefix
+            ]
+
+            argument = command[
+                len(prefix):
+            ].strip()
+
+            print(
+                f"Prefix: {prefix}"
+            )
+
+            print(
+                f"Argument: '{argument}'"
+            )
+
+            result = function(
+                argument
+            )
+
+            # ----------------------------------------
+            # None means:
+            #
+            # "I didn't handle this command."
+            #
+            # Continue searching for another handler.
+            # ----------------------------------------
+
+            if result is None:
+
+                continue
+
+            return result
+
+        # ----------------------------------------
+        # No fast command matched.
+        #
+        # Return None silently so Brain can
+        # continue to the planner / intent engine.
+        # ----------------------------------------
+
         return None
 
 

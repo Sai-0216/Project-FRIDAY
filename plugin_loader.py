@@ -1,3 +1,8 @@
+"""
+Project FRIDAY
+Plugin Loader
+"""
+
 import importlib
 import os
 
@@ -5,28 +10,85 @@ import os
 class PluginLoader:
 
     def __init__(self):
+
         self.loaded = False
+        self.loaded_plugins = []
+
+    # ========================================
+    # LOAD PLUGINS
+    # ========================================
 
     def load_plugins(self):
 
         if self.loaded:
+
             return
 
         self.loaded = True
 
-        print("Loading plugins...")
-
         folder = "modules"
 
-        for file in os.listdir(folder):
+        # ----------------------------------------
+        # Check modules folder
+        # ----------------------------------------
 
-            if file.endswith(".py") and file != "__init__.py":
+        if not os.path.isdir(folder):
 
-                module = f"modules.{file[:-3]}"
+            print(
+                "[FRIDAY] Plugin folder not found."
+            )
 
-                importlib.import_module(module)
+            return
 
-                print(f"✅ Loaded: {module}")
+        # ----------------------------------------
+        # Load modules
+        # ----------------------------------------
 
+        for file in sorted(
+            os.listdir(folder)
+        ):
+
+            if not file.endswith(".py"):
+
+                continue
+
+            if file == "__init__.py":
+
+                continue
+
+            module_name = (
+                f"modules.{file[:-3]}"
+            )
+
+            try:
+
+                importlib.import_module(
+                    module_name
+                )
+
+                self.loaded_plugins.append(
+                    module_name
+                )
+
+            except Exception as e:
+
+                print(
+                    f"[Plugin Error] "
+                    f"{module_name}: {e}"
+                )
+
+        # ----------------------------------------
+        # Clean startup message
+        # ----------------------------------------
+
+        print(
+            f"[FRIDAY] "
+            f"{len(self.loaded_plugins)} plugins loaded."
+        )
+
+
+# ========================================
+# GLOBAL LOADER
+# ========================================
 
 loader = PluginLoader()

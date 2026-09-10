@@ -1,83 +1,325 @@
+"""
+Project FRIDAY
+Assistant Controller
+"""
+
+import time
+
+from brain import brain
+from gui import gui
 from speech import speaker
 from listen import listener
-from brain import brain
 from logger import logger
-from gui import gui
-from utils import processor
-import time
+from modules import task_manager
+
+from proactive.proactive_system import proactive_system
+from proactive.notification_manager import notification_manager
+
 
 class Assistant:
 
     def start(self):
 
-        speaker.speak("Hello Sir. I am FRIDAY.")
+        # ========================================
+        # START FRIDAY
+        # ========================================
 
-        speaker.speak("Testing voice")
+        greeting = "Hello Sir. I am FRIDAY."
+
+        speaker.speak(
+            greeting
+        )
+
+        # ========================================
+        # RECOVER INTERRUPTED TASKS
+        # ========================================
+
+        recovered_tasks = (
+            task_manager.task_manager
+            .recover_interrupted_tasks()
+        )
+
+        if recovered_tasks:
+
+            print(
+                "[ASSISTANT] Recovered interrupted tasks:",
+                recovered_tasks
+            )
+
+        # ========================================
+        # START PROACTIVE SYSTEM
+        # ========================================
+
+        proactive_system.start()
 
         while True:
 
-            gui.set_status("Listening")
+            # ========================================
+            # WAITING FOR WAKE WORD
+            # ========================================
+
+            gui.set_status_threadsafe(
+                "Listening"
+            )
 
             command = listener.listen()
 
-            if command == "":
+            if not command:
                 continue
 
-            # Wake word required
-            if not command.startswith("friday"):
+            command = (
+                command
+                .lower()
+                .strip()
+            )
+
+            # ========================================
+            # PROACTIVE CONFIRMATION BRIDGE
+            # ========================================
+
+            # If the Proactive NotificationManager
+            # is waiting for confirmation, expose
+            # that confirmation to the existing
+            # brain confirmation system.
+
+            if (
+                notification_manager.has_pending_confirmation()
+                and not brain.pending_confirmation
+            ):
+
+                proactive_decision = (
+                    notification_manager
+                    .get_pending_confirmation()
+                )
+
+                brain.pending_confirmation = (
+                    proactive_decision
+                )
+
+                print(
+                    "[ASSISTANT] Proactive confirmation "
+                    "bridged to brain."
+                )
+
+            # ========================================
+            # CONFIRMATION RESPONSES
+            # ========================================
+
+            confirmation_words = (
+
+                # YES
+                "yes",
+                "yeah",
+                "yep",
+                "yes sir",
+                "sure",
+                "okay",
+                "ok",
+                "do it",
+                "confirm",
+                "go ahead",
+
+                # NO
+                "no",
+                "nope",
+                "no sir",
+                "cancel",
+                "stop",
+                "don't",
+                "dont",
+                "never mind",
+                "nevermind",
+            )
+
+            is_confirmation = (
+                brain.pending_confirmation
+                and command in confirmation_words
+            )
+
+            # ========================================
+            # WAKE WORD REQUIRED
+            # UNLESS CONFIRMATION
+            # ========================================
+
+            if (
+                not command.startswith("friday")
+                and not is_confirmation
+            ):
+
                 continue
 
-            gui.add_message("🧑 You", command)
+            # ========================================
+            # SHOW COMMAND IN GUI
+            # ========================================
 
-            # Remove wake word
-            command = command.replace("friday", "", 1).strip()
+            gui.add_message_threadsafe(
+                "🧑 You",
+                command
+            )
 
-            # User only said "Friday"
-            if command == "":
+            # ========================================
+            # REMOVE WAKE WORD
+            # ========================================
 
-                print("DEBUG: Entered wake-word block")
+            if command.startswith(
+                "friday"
+            ):
 
-                speaker.speak("Yes Sir?")
+                command = command[
+                    len("friday"):
+                ].strip()
 
-                print("DEBUG: Finished speaking")
+            # ========================================
+            # WAKE WORD ONLY
+            # ========================================
 
-                time.sleep(1)
+            if not command:
 
-                gui.set_status("Listening")
+                speaker.speak(
+                    "Yes Sir?"
+                )
+
+                time.sleep(
+                    0.5
+                )
+
+                gui.set_status_threadsafe(
+                    "Listening"
+                )
 
                 while True:
 
                     command = listener.listen()
 
-                    print("Assistant received:", command)
-
-                    if command != "":
+                    if command:
                         break
 
-                gui.add_message("🧑 You", command)
+                command = (
+                    command
+                    .lower()
+                    .strip()
+                )
 
-            logger.info(f"User: {command}")
+                # ------------------------------------
+                # REMOVE WAKE WORD AGAIN
+                # ------------------------------------
 
-            if command in [
+                if command.startswith(
+                    "friday"
+                ):
+
+                    command = command[
+                        len("friday"):
+                    ].strip()
+
+                # ------------------------------------
+                # SHOW FINAL COMMAND IN GUI
+                # ------------------------------------
+
+                gui.add_message_threadsafe(
+                    "🧑 You",
+                    command
+                )
+
+            # ========================================
+            # FINAL CLEANUP
+            # ========================================
+
+            command = (
+                command
+                .strip()
+            )
+
+            if not command:
+                continue
+
+            logger.info(
+                f"User: {command}"
+            )
+
+            # ========================================
+            # EXIT COMMANDS
+            # ========================================
+
+            if command in (
                 "exit",
                 "quit",
                 "shutdown friday",
                 "goodbye",
                 "stop listening"
-            ]:
-                speaker.speak("Goodbye Sir.")
+            ):
+
+                gui.set_status_threadsafe(
+                    "Stopping"
+                )
+
+                speaker.speak(
+                    "Goodbye Sir."
+                )
+
+                # ------------------------------------
+                # STOP PROACTIVE SYSTEM
+                # ------------------------------------
+
+                proactive_system.stop()
+
                 break
 
-            gui.set_status("Thinking")
+            # ========================================
+            # PROCESS COMMAND
+            # ========================================
 
-            command = processor.clean(command)
+            gui.set_status_threadsafe(
+                "Thinking"
+            )
 
-            running = brain.process(command)
+            running = brain.process(
+                command
+            )
 
-            gui.set_status("Idle")
+            # ========================================
+            # CONSUME PROACTIVE CONFIRMATION
+            # ========================================
+
+            if (
+                not brain.pending_confirmation
+                and notification_manager.has_pending_confirmation()
+            ):
+
+                notification_manager.consume_confirmation()
+
+                print(
+                    "[ASSISTANT] Proactive confirmation "
+                    "completed."
+                )
+
+            # ========================================
+            # SAFE HABIT GUI REFRESH
+            # ========================================
+
+            gui.refresh_habits_safe()
+
+            # ========================================
+            # RETURN TO IDLE
+            # ========================================
+
+            gui.set_status_threadsafe(
+                "Idle"
+            )
 
             if not running:
+
+                # ------------------------------------
+                # STOP PROACTIVE SYSTEM
+                # ------------------------------------
+
+                proactive_system.stop()
+
                 break
 
+
+# ========================================
+# ASSISTANT INSTANCE
+# ========================================
 
 assistant = Assistant()
