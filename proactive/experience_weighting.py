@@ -3,7 +3,7 @@ class ExperienceWeighting:
 
     OUTCOME_WEIGHTS = {
         "success": 1.0,
-        "failure": 1.0,
+        "failure": 0.0,
         "partial": 0.5,
         "unknown": 0.0,
     }
