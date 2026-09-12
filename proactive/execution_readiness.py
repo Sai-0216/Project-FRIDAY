@@ -7,7 +7,7 @@ class ExecutionReadiness:
     def assess(self, action, dependency_plan=None, workflow=None):
         if not isinstance(action, dict):
             return None
-        action_id = action.get("id")
+        action_id = action.get("action_id", action.get("id"))
         action_name = action.get("action")
         if not isinstance(action_id, int) or not isinstance(action_name, str) or not action_name.strip():
             return None
