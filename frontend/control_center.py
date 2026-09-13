@@ -1,8 +1,10 @@
 import customtkinter as ctk
 try:
     from frontend.device_control import list_devices, send_command, broadcast_command
+    from frontend.result_control import latest_device_result, format_execution_result
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
+    from result_control import latest_device_result, format_execution_result
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -128,6 +130,9 @@ class FridayControlCenter:
         ctk.CTkButton(actions,text='REFRESH',height=36,command=self.refresh_devices).pack(side='left')
         self.command_result=ctk.CTkLabel(self.page,text='')
         self.command_result.pack(pady=8)
+        ctk.CTkLabel(self.page,text='Latest execution result',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(8,3))
+        self.execution_result=ctk.CTkLabel(self.page,text='No execution result available.',justify='left',anchor='w',wraplength=800)
+        self.execution_result.pack(fill='x',padx=25,pady=(0,8))
         self.refresh_devices()
 
     def refresh_devices(self):
@@ -161,10 +166,23 @@ class FridayControlCenter:
         else:
             self.selected_label.configure(text=current)
 
+    def refresh_execution_result(self, device_id=None):
+        if device_id is None:
+            device_id=self.selected_device.get().strip()
+        if not device_id:
+            self.execution_result.configure(text="Select a device to view execution results.")
+            return
+        try:
+            result=latest_device_result(device_id)
+            self.execution_result.configure(text=format_execution_result(result))
+        except Exception as e:
+            self.execution_result.configure(text=f"Could not load execution result: {e}")
+
     def select_device(self,device_id):
         self.selected_device.set(device_id)
         self.selected_label.configure(text=device_id)
         self.command_result.configure(text=f'Selected {device_id}')
+        self.refresh_execution_result(device_id)
 
     def send_device_command(self):
         device_id=self.selected_device.get().strip()
@@ -175,6 +193,7 @@ class FridayControlCenter:
         result=send_command(device_id,command)
         if isinstance(result,dict) and result.get('success') is True:
             self.command_result.configure(text=f'Command sent to {device_id} ✓')
+            self.root.after(700, lambda: self.refresh_execution_result(device_id))
         else:
             self.command_result.configure(text='Command could not be sent.')
 
@@ -186,6 +205,9 @@ class FridayControlCenter:
         result=broadcast_command(command)
         if isinstance(result,dict) and result.get('success') is True:
             self.command_result.configure(text='Broadcast sent to connected devices ✓')
+            device_id=self.selected_device.get().strip()
+            if device_id:
+                self.root.after(700, lambda: self.refresh_execution_result(device_id))
         else:
             self.command_result.configure(text='Broadcast could not be sent.')
 
