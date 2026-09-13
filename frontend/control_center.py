@@ -6,6 +6,7 @@ try:
     from frontend.command_history import history
     from frontend.activity_timeline import build_timeline, format_timeline
     from frontend.persistent_activity import PersistentActivityStore
+    from frontend.activity_search import filter_activity
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
     from result_control import latest_device_result, format_execution_result
@@ -13,6 +14,7 @@ except ModuleNotFoundError:
     from command_history import history
     from activity_timeline import build_timeline, format_timeline
     from persistent_activity import PersistentActivityStore
+    from activity_search import filter_activity
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -150,6 +152,16 @@ class FridayControlCenter:
         ctk.CTkButton(actions,text='REFRESH',height=36,command=self.refresh_devices).pack(side='left')
         self.command_result=ctk.CTkLabel(self.page,text='')
         self.command_result.pack(pady=8)
+        ctk.CTkLabel(self.page,text="Activity search",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
+        search_row=ctk.CTkFrame(self.page,fg_color="transparent")
+        search_row.pack(fill="x",padx=25,pady=4)
+        search_row.grid_columnconfigure(0,weight=1)
+        self.activity_query=ctk.CTkEntry(search_row,placeholder_text="search commands or responses")
+        self.activity_query.grid(row=0,column=0,sticky="ew",padx=(0,8))
+        self.activity_filter=ctk.CTkOptionMenu(search_row,values=["ALL","completed","failed","pending"],width=120,command=lambda _: self.refresh_command_history())
+        self.activity_filter.set("ALL")
+        self.activity_filter.grid(row=0,column=1,padx=(0,8))
+        ctk.CTkButton(search_row,text="SEARCH",width=90,command=self.refresh_command_history).grid(row=0,column=2)
         ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
         self.timeline_box=ctk.CTkTextbox(self.page,height=120)
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
@@ -245,7 +257,11 @@ class FridayControlCenter:
             device_id = self.selected_device.get().strip()
         if not device_id:
             return
-        items = self.persistent_history.recent(device_id, limit=8)
+        items = self.persistent_history.recent(device_id, limit=100)
+        query = self.activity_query.get().strip() if hasattr(self, "activity_query") else ""
+        selected_outcome = self.activity_filter.get() if hasattr(self, "activity_filter") else "ALL"
+        items = filter_activity(items, query=query, outcome=None if selected_outcome == "ALL" else selected_outcome)
+        items = items[-8:]
         lines = []
         for item in reversed(items):
             result = item.get("result") or {}
