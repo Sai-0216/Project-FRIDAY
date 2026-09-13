@@ -11,6 +11,7 @@ try:
     from frontend.activity_navigation import previous_index, next_index, navigation_state
     from frontend.activity_summary import format_activity_summary
     from frontend.activity_export import export_activity_json
+    from frontend.activity_refresh import activity_signature, detect_activity_changes
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -24,6 +25,7 @@ except ModuleNotFoundError:
     from activity_navigation import previous_index, next_index, navigation_state
     from activity_summary import format_activity_summary
     from activity_export import export_activity_json
+    from activity_refresh import activity_signature, detect_activity_changes
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -41,6 +43,8 @@ class FridayControlCenter:
 
         self.page_title = ctk.StringVar(value="CHAT")
         self.monitor_after_id = None
+        self.activity_monitor_after_id = None
+        self.activity_monitor_signature = ()
         self.monitor_signature = {}
         self.persistent_history = PersistentActivityStore()
         self._build()
@@ -92,6 +96,7 @@ class FridayControlCenter:
     def show_page(self, name):
         if self.page_title.get() == "DEVICES" and name != "DEVICES":
             self.stop_device_monitor()
+            self.stop_activity_monitor()
         if name not in PAGES:
             name = "CHAT"
 
@@ -195,6 +200,41 @@ class FridayControlCenter:
         ctk.CTkButton(self.page,text="EXPORT JSON",height=36,command=self.export_current_activity).pack(anchor="w",padx=25,pady=(0,10))
         self.refresh_devices()
         self.start_device_monitor()
+        self.start_activity_monitor()
+
+    def start_activity_monitor(self):
+        self.stop_activity_monitor()
+        device_id=self.selected_device.get().strip()
+        items=self.persistent_history.recent(device_id, limit=100) if device_id else []
+        self.activity_monitor_signature=activity_signature(items)
+        self.activity_monitor_after_id=self.root.after(2000, self._poll_activity_monitor)
+
+    def stop_activity_monitor(self):
+        if self.activity_monitor_after_id is not None:
+            try:
+                self.root.after_cancel(self.activity_monitor_after_id)
+            except Exception:
+                pass
+            self.activity_monitor_after_id=None
+
+    def _poll_activity_monitor(self):
+        self.activity_monitor_after_id=None
+        if self.page_title.get() != "DEVICES":
+            return
+        try:
+            device_id=self.selected_device.get().strip()
+            items=self.persistent_history.recent(device_id, limit=100) if device_id else []
+            current=activity_signature(items)
+            if detect_activity_changes(self.activity_monitor_signature,current):
+                self.activity_monitor_signature=current
+                self.refresh_command_history(device_id)
+            else:
+                self.activity_monitor_signature=current
+        except Exception as e:
+            self.command_result.configure(text="Activity monitor error: {}".format(e))
+        finally:
+            if self.page_title.get() == "DEVICES":
+                self.activity_monitor_after_id=self.root.after(2000,self._poll_activity_monitor)
 
     def start_device_monitor(self):
         self.stop_device_monitor()
@@ -278,6 +318,8 @@ class FridayControlCenter:
         self.command_result.configure(text=f'Selected {device_id}')
         self.refresh_execution_result(device_id)
         self.refresh_command_history(device_id)
+        items=self.persistent_history.recent(device_id, limit=100)
+        self.activity_monitor_signature=activity_signature(items)
 
     def refresh_command_history(self, device_id=None):
         if device_id is None:
