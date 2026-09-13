@@ -5,12 +5,14 @@ try:
     from frontend.device_monitor import device_signature, detect_device_changes
     from frontend.command_history import history
     from frontend.activity_timeline import build_timeline, format_timeline
+    from frontend.persistent_activity import PersistentActivityStore
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
     from result_control import latest_device_result, format_execution_result
     from device_monitor import device_signature, detect_device_changes
     from command_history import history
     from activity_timeline import build_timeline, format_timeline
+    from persistent_activity import PersistentActivityStore
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -28,6 +30,7 @@ class FridayControlCenter:
         self.page_title = ctk.StringVar(value="CHAT")
         self.monitor_after_id = None
         self.monitor_signature = {}
+        self.persistent_history = PersistentActivityStore()
         self._build()
 
     def _build(self):
@@ -242,7 +245,7 @@ class FridayControlCenter:
             device_id = self.selected_device.get().strip()
         if not device_id:
             return
-        items = history.recent(device_id, limit=8)
+        items = self.persistent_history.recent(device_id, limit=8)
         lines = []
         for item in reversed(items):
             result = item.get("result") or {}
@@ -264,6 +267,7 @@ class FridayControlCenter:
         try:
             result = latest_device_result(device_id) or {}
             history.add(device_id, command, result)
+            self.persistent_history.add(device_id, command, result)
             self.refresh_command_history(device_id)
         except Exception as e:
             self.command_result.configure(text="History error: {}".format(e))
