@@ -18,6 +18,7 @@ try:
     from frontend.notification_filter import filter_notifications, available_notification_types
     from frontend.notification_priority import sort_notifications
     from frontend.notification_grouping import group_notifications, format_notification_groups
+    from frontend.notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -38,6 +39,7 @@ except ModuleNotFoundError:
     from notification_filter import filter_notifications, available_notification_types
     from notification_priority import sort_notifications
     from notification_grouping import group_notifications, format_notification_groups
+    from notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -203,7 +205,7 @@ class FridayControlCenter:
         self.activity_summary_label.pack(fill="x",padx=25,pady=(0,5))
         self.activity_notification_label=ctk.CTkLabel(self.page,text="No new activity.",anchor="w",justify="left")
         self.activity_notification_label.pack(fill="x",padx=25,pady=(0,5))
-        self.notification_count_label=ctk.CTkLabel(self.page,text="Notifications: 0",anchor="w")
+        self.notification_count_label=ctk.CTkLabel(self.page,text="Notifications: 0 - Unread: 0",anchor="w")
         self.notification_count_label.pack(fill="x",padx=25,pady=(0,3))
         notification_filter_row=ctk.CTkFrame(self.page,fg_color="transparent")
         notification_filter_row.pack(fill="x",padx=25,pady=(0,5))
@@ -225,6 +227,8 @@ class FridayControlCenter:
         self.notification_box.configure(state="disabled")
         notification_actions=ctk.CTkFrame(self.page,fg_color="transparent")
         notification_actions.pack(fill="x",padx=25,pady=(0,8))
+        ctk.CTkButton(notification_actions,text="MARK LATEST READ",width=150,height=34,command=lambda: self.set_latest_notification_read(True)).pack(side="left",padx=(0,8))
+        ctk.CTkButton(notification_actions,text="MARK LATEST UNREAD",width=165,height=34,command=lambda: self.set_latest_notification_read(False)).pack(side="left",padx=(0,8))
         ctk.CTkButton(notification_actions,text="DISMISS LATEST",width=140,height=34,command=self.dismiss_latest_notification).pack(side="left",padx=(0,8))
         ctk.CTkButton(notification_actions,text="CLEAR ALL",width=110,height=34,command=self.clear_notifications).pack(side="left")
         ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
@@ -474,7 +478,7 @@ class FridayControlCenter:
         query=self.notification_query_entry.get().strip() if hasattr(self,"notification_query_entry") else ""
         selected_type=self.notification_type_menu.get() if hasattr(self,"notification_type_menu") else "ALL"
         items=filter_notifications(all_items,query=query,notification_type=None if selected_type=="ALL" else selected_type)
-        self.notification_count_label.configure(text="Notifications: {}".format(self.notification_manager.count()))
+        self.notification_count_label.configure(text="Notifications: {} - Unread: {}".format(self.notification_manager.count(), unread_count(all_items)))
         grouped=hasattr(self,"notification_group_menu") and self.notification_group_menu.get()=="GROUPED"
         if grouped:
             groups=group_notifications(items)
@@ -482,12 +486,25 @@ class FridayControlCenter:
         else:
             lines=[]
             for item in reversed(items):
-                lines.append(format_activity_notification(item))
+                lines.append("[{}] {}".format(format_read_state(item), format_activity_notification(item)))
             text=chr(10).join(lines) if lines else "No matching notifications."
         self.notification_box.configure(state="normal")
         self.notification_box.delete("1.0","end")
         self.notification_box.insert("1.0",text if text else "No matching notifications.")
         self.notification_box.configure(state="disabled")
+
+    def set_latest_notification_read(self, read=True):
+        count=self.notification_manager.count()
+        if count <= 0:
+            self.command_result.configure(text="No notifications to update.")
+            return
+        latest=self.notification_manager.recent(limit=1)[0]
+        updated=mark_notification_read(latest) if read else mark_notification_unread(latest)
+        latest.clear()
+        latest.update(updated)
+        self.notification_persistence.save(self.notification_manager.recent(limit=100))
+        self.refresh_notification_panel()
+        self.command_result.configure(text="Latest notification marked {}.".format("read" if read else "unread"))
 
     def dismiss_latest_notification(self):
         count=self.notification_manager.count()
