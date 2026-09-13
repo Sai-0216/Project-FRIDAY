@@ -8,6 +8,7 @@ try:
     from frontend.persistent_activity import PersistentActivityStore
     from frontend.activity_search import filter_activity
     from frontend.activity_selection import select_activity, activity_labels
+    from frontend.activity_navigation import previous_index, next_index, navigation_state
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -18,6 +19,7 @@ except ModuleNotFoundError:
     from persistent_activity import PersistentActivityStore
     from activity_search import filter_activity
     from activity_selection import select_activity, activity_labels
+    from activity_navigation import previous_index, next_index, navigation_state
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -171,9 +173,17 @@ class FridayControlCenter:
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
         self.timeline_box.configure(state="disabled")
         ctk.CTkButton(self.page,text="LATEST DETAILS",height=36,command=self.show_latest_activity_details).pack(anchor="w",padx=25,pady=(2,10))
-        self.activity_selector=ctk.CTkOptionMenu(self.page,values=["No activity"],width=360)
+        self.activity_selector=ctk.CTkOptionMenu(self.page,values=["No activity"],width=360,command=self.select_activity_from_label)
         self.activity_selector.set("No activity")
         self.activity_selector.pack(anchor="w",padx=25,pady=(2,5))
+        navigation_row=ctk.CTkFrame(self.page,fg_color="transparent")
+        navigation_row.pack(fill="x",padx=25,pady=(2,5))
+        self.previous_activity_button=ctk.CTkButton(navigation_row,text="PREVIOUS",width=110,height=34,command=self.show_previous_activity)
+        self.previous_activity_button.pack(side="left",padx=(0,8))
+        self.activity_position_label=ctk.CTkLabel(navigation_row,text="0 / 0",width=90)
+        self.activity_position_label.pack(side="left",padx=8)
+        self.next_activity_button=ctk.CTkButton(navigation_row,text="NEXT",width=110,height=34,command=self.show_next_activity)
+        self.next_activity_button.pack(side="left",padx=8)
         ctk.CTkButton(self.page,text="SELECTED DETAILS",height=36,command=self.show_selected_activity_details).pack(anchor="w",padx=25,pady=(0,10))
         self.refresh_devices()
         self.start_device_monitor()
@@ -302,6 +312,42 @@ class FridayControlCenter:
         box.insert("1.0",format_activity_details(self.activity_items[-1]))
         box.configure(state="disabled")
         ctk.CTkButton(popup,text="CLOSE",width=100,command=popup.destroy).pack(pady=(0,15))
+    def update_activity_navigation(self):
+        state=navigation_state(self.activity_index if self.activity_index is not None else 0,len(self.activity_items))
+        if hasattr(self,"activity_position_label"):
+            position="0 / 0" if state["index"] is None else "{} / {}".format(state["index"]+1,state["count"])
+            self.activity_position_label.configure(text=position)
+        if hasattr(self,"previous_activity_button"):
+            self.previous_activity_button.configure(state="normal" if state["has_previous"] else "disabled")
+        if hasattr(self,"next_activity_button"):
+            self.next_activity_button.configure(state="normal" if state["has_next"] else "disabled")
+
+    def select_activity_from_label(self, label):
+        labels=getattr(self,"activity_labels",[])
+        if label in labels:
+            self.activity_index=labels.index(label)
+            self.update_activity_navigation()
+
+    def show_previous_activity(self):
+        if self.activity_index is None:
+            return
+        self.activity_index=previous_index(self.activity_index,len(self.activity_items))
+        self.update_selected_activity_view()
+
+    def show_next_activity(self):
+        if self.activity_index is None:
+            return
+        self.activity_index=next_index(self.activity_index,len(self.activity_items))
+        self.update_selected_activity_view()
+
+    def update_selected_activity_view(self):
+        if self.activity_index is None or not self.activity_items:
+            self.update_activity_navigation()
+            return
+        label=self.activity_labels[self.activity_index]
+        self.activity_selector.set(label)
+        self.update_activity_navigation()
+
     def show_selected_activity_details(self):
         label = self.activity_selector.get().strip()
         labels = getattr(self, "activity_labels", [])
