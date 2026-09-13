@@ -4,10 +4,13 @@ try:
     from frontend.result_control import latest_device_result, format_execution_result
     from frontend.device_monitor import device_signature, detect_device_changes
     from frontend.command_history import history
+    from frontend.activity_timeline import build_timeline, format_timeline
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
     from result_control import latest_device_result, format_execution_result
     from device_monitor import device_signature, detect_device_changes
+    from command_history import history
+    from activity_timeline import build_timeline, format_timeline
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -144,6 +147,10 @@ class FridayControlCenter:
         ctk.CTkButton(actions,text='REFRESH',height=36,command=self.refresh_devices).pack(side='left')
         self.command_result=ctk.CTkLabel(self.page,text='')
         self.command_result.pack(pady=8)
+        ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
+        self.timeline_box=ctk.CTkTextbox(self.page,height=120)
+        self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
+        self.timeline_box.configure(state="disabled")
         self.refresh_devices()
         self.start_device_monitor()
 
@@ -228,6 +235,7 @@ class FridayControlCenter:
         self.selected_label.configure(text=device_id)
         self.command_result.configure(text=f'Selected {device_id}')
         self.refresh_execution_result(device_id)
+        self.refresh_command_history(device_id)
 
     def refresh_command_history(self, device_id=None):
         if device_id is None:
@@ -246,6 +254,11 @@ class FridayControlCenter:
         self.history_box.delete("1.0", "end")
         self.history_box.insert("1.0", text)
         self.history_box.configure(state="disabled")
+        timeline=build_timeline(items, limit=8)
+        self.timeline_box.configure(state="normal")
+        self.timeline_box.delete("1.0", "end")
+        self.timeline_box.insert("1.0", format_timeline(timeline))
+        self.timeline_box.configure(state="disabled")
 
     def record_command_history(self, device_id, command):
         try:
