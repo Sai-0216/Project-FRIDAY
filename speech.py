@@ -316,22 +316,27 @@ class SpeechEngine:
         # RUN SPEECH
         # ====================================
 
+        def run_speech():
+            try:
+                asyncio.run(self._speak(text))
+            except Exception as e:
+                print(
+                    "[Speech Error]",
+                    repr(e)
+                )
+            finally:
+                self.is_speaking = False
+
         try:
-
-            asyncio.run(
-                self._speak(text)
-            )
-
-        except Exception as e:
-
-            print(
-                "[Speech Error]",
-                repr(e)
-            )
-
-        finally:
-
-            self.is_speaking = False
+            asyncio.get_running_loop()
+        except RuntimeError:
+            run_speech()
+        else:
+            threading.Thread(
+                target=run_speech,
+                name="FRIDAY-Speech",
+                daemon=True,
+            ).start()
 
     # ========================================
     # STOP SPEECH
