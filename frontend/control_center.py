@@ -3,6 +3,7 @@ try:
     from frontend.device_control import list_devices, send_command, broadcast_command
     from frontend.result_control import latest_device_result, format_execution_result
     from frontend.device_monitor import device_signature, detect_device_changes
+    from frontend.command_history import history
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
     from result_control import latest_device_result, format_execution_result
@@ -65,7 +66,7 @@ class FridayControlCenter:
             font=("Arial", 28, "bold"),
         ).grid(row=0, column=0, sticky="w", padx=20, pady=20)
 
-        self.page = ctk.CTkFrame(self.main, corner_radius=14)
+        self.page = ctk.CTkScrollableFrame(self.main, corner_radius=14)
         self.page.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
 
         self.show_page("CHAT")
@@ -120,6 +121,10 @@ class FridayControlCenter:
         ctk.CTkLabel(self.page,text='Latest execution result',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(8,3))
         self.execution_result=ctk.CTkLabel(self.page,text='No execution result available.',justify='left',anchor='w',wraplength=800)
         self.execution_result.pack(fill='x',padx=25,pady=(0,8))
+        ctk.CTkLabel(self.page,text='Recent command history',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(8,3))
+        self.history_box=ctk.CTkTextbox(self.page,height=110)
+        self.history_box.pack(fill='x',padx=25,pady=(0,8))
+        self.history_box.configure(state='disabled')
         ctk.CTkLabel(self.page,text='Command',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(12,3))
         command_row=ctk.CTkFrame(self.page,fg_color='transparent')
         command_row.pack(fill='x',padx=25,pady=5)
@@ -224,6 +229,32 @@ class FridayControlCenter:
         self.command_result.configure(text=f'Selected {device_id}')
         self.refresh_execution_result(device_id)
 
+    def refresh_command_history(self, device_id=None):
+        if device_id is None:
+            device_id = self.selected_device.get().strip()
+        if not device_id:
+            return
+        items = history.recent(device_id, limit=8)
+        lines = []
+        for item in reversed(items):
+            result = item.get("result") or {}
+            outcome = result.get("outcome", "pending")
+            command = item.get("command", "")
+            lines.append("[{}] {}".format(outcome, command))
+        text = "\n".join(lines) if lines else "No commands recorded yet."
+        self.history_box.configure(state="normal")
+        self.history_box.delete("1.0", "end")
+        self.history_box.insert("1.0", text)
+        self.history_box.configure(state="disabled")
+
+    def record_command_history(self, device_id, command):
+        try:
+            result = latest_device_result(device_id) or {}
+            history.add(device_id, command, result)
+            self.refresh_command_history(device_id)
+        except Exception as e:
+            self.command_result.configure(text="History error: {}".format(e))
+
     def send_device_command(self):
         device_id=self.selected_device.get().strip()
         command=self.command_entry.get().strip()
@@ -233,7 +264,7 @@ class FridayControlCenter:
         result=send_command(device_id,command)
         if isinstance(result,dict) and result.get('success') is True:
             self.command_result.configure(text=f'Command sent to {device_id} ✓')
-            self.root.after(700, lambda: self.refresh_execution_result(device_id))
+            self.root.after(900, lambda: (self.refresh_execution_result(device_id), self.record_command_history(device_id, command)))
         else:
             self.command_result.configure(text='Command could not be sent.')
 
