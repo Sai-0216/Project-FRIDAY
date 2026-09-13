@@ -1,8 +1,8 @@
 import customtkinter as ctk
 try:
-    from frontend.device_control import list_devices, send_command
+    from frontend.device_control import list_devices, send_command, broadcast_command
 except ModuleNotFoundError:
-    from device_control import list_devices, send_command
+    from device_control import list_devices, send_command, broadcast_command
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
