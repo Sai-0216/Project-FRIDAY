@@ -14,6 +14,7 @@ try:
     from frontend.activity_refresh import activity_signature, detect_activity_changes
     from frontend.activity_notifications import build_activity_notification, format_activity_notification
     from frontend.notification_manager import NotificationManager
+    from frontend.notification_persistence import NotificationPersistence
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -30,6 +31,7 @@ except ModuleNotFoundError:
     from activity_refresh import activity_signature, detect_activity_changes
     from activity_notifications import build_activity_notification, format_activity_notification
     from notification_manager import NotificationManager
+    from notification_persistence import NotificationPersistence
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -51,6 +53,9 @@ class FridayControlCenter:
         self.activity_monitor_signature = ()
         self.activity_notification = None
         self.notification_manager = NotificationManager()
+        self.notification_persistence = NotificationPersistence()
+        for item in self.notification_persistence.load():
+            self.notification_manager.add(item)
         self.monitor_signature = {}
         self.persistent_history = PersistentActivityStore()
         self._build()
@@ -246,6 +251,7 @@ class FridayControlCenter:
                 notification=build_activity_notification(self.activity_monitor_signature,current)
                 self.activity_notification=notification
                 self.notification_manager.add(notification)
+                self.notification_persistence.save(self.notification_manager.recent(limit=100))
                 if hasattr(self,"activity_notification_label"):
                     self.activity_notification_label.configure(text=format_activity_notification(notification))
                 self.activity_monitor_signature=current
@@ -447,11 +453,13 @@ class FridayControlCenter:
             self.command_result.configure(text="No notifications to dismiss.")
             return
         self.notification_manager.dismiss(count-1)
+        self.notification_persistence.save(self.notification_manager.recent(limit=100))
         self.refresh_notification_panel()
         self.command_result.configure(text="Latest notification dismissed.")
 
     def clear_notifications(self):
         removed=self.notification_manager.clear()
+        self.notification_persistence.clear()
         self.refresh_notification_panel()
         self.command_result.configure(text="Cleared {} notification{}.".format(len(removed),"" if len(removed)==1 else "s"))
 
