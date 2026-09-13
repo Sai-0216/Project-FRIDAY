@@ -12,6 +12,7 @@ try:
     from frontend.activity_summary import format_activity_summary
     from frontend.activity_export import export_activity_json
     from frontend.activity_refresh import activity_signature, detect_activity_changes
+    from frontend.activity_notifications import build_activity_notification, format_activity_notification
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -26,6 +27,7 @@ except ModuleNotFoundError:
     from activity_summary import format_activity_summary
     from activity_export import export_activity_json
     from activity_refresh import activity_signature, detect_activity_changes
+    from activity_notifications import build_activity_notification, format_activity_notification
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -45,6 +47,7 @@ class FridayControlCenter:
         self.monitor_after_id = None
         self.activity_monitor_after_id = None
         self.activity_monitor_signature = ()
+        self.activity_notification = None
         self.monitor_signature = {}
         self.persistent_history = PersistentActivityStore()
         self._build()
@@ -180,6 +183,8 @@ class FridayControlCenter:
         ctk.CTkLabel(self.page,text="Activity summary",font=( "Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
         self.activity_summary_label=ctk.CTkLabel(self.page,text="Total: 0 | Completed: 0 | Failed: 0 | Pending: 0",anchor="w",justify="left")
         self.activity_summary_label.pack(fill="x",padx=25,pady=(0,5))
+        self.activity_notification_label=ctk.CTkLabel(self.page,text="No new activity.",anchor="w",justify="left")
+        self.activity_notification_label.pack(fill="x",padx=25,pady=(0,5))
         ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
         self.timeline_box=ctk.CTkTextbox(self.page,height=120)
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
@@ -226,6 +231,10 @@ class FridayControlCenter:
             items=self.persistent_history.recent(device_id, limit=100) if device_id else []
             current=activity_signature(items)
             if detect_activity_changes(self.activity_monitor_signature,current):
+                notification=build_activity_notification(self.activity_monitor_signature,current)
+                self.activity_notification=notification
+                if hasattr(self,"activity_notification_label"):
+                    self.activity_notification_label.configure(text=format_activity_notification(notification))
                 self.activity_monitor_signature=current
                 self.refresh_command_history(device_id)
             else:
