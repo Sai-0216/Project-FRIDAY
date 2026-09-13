@@ -16,6 +16,7 @@ try:
     from frontend.notification_manager import NotificationManager
     from frontend.notification_persistence import NotificationPersistence
     from frontend.notification_filter import filter_notifications, available_notification_types
+    from frontend.notification_priority import sort_notifications
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -34,6 +35,7 @@ except ModuleNotFoundError:
     from notification_manager import NotificationManager
     from notification_persistence import NotificationPersistence
     from notification_filter import filter_notifications, available_notification_types
+    from notification_priority import sort_notifications
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -57,6 +59,7 @@ class FridayControlCenter:
         self.notification_manager = NotificationManager()
         self.notification_query = ""
         self.notification_type = "ALL"
+        self.notification_sort = "HIGH"
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -207,7 +210,10 @@ class FridayControlCenter:
         self.notification_type_menu=ctk.CTkOptionMenu(notification_filter_row,values=["ALL"],width=120,command=lambda _: self.refresh_notification_panel())
         self.notification_type_menu.set("ALL")
         self.notification_type_menu.grid(row=0,column=1,padx=(0,8))
-        ctk.CTkButton(notification_filter_row,text="SEARCH",width=90,command=self.refresh_notification_panel).grid(row=0,column=2)
+        self.notification_sort_menu=ctk.CTkOptionMenu(notification_filter_row,values=["HIGH","LOW"],width=120,command=lambda _: self.refresh_notification_panel())
+        self.notification_sort_menu.set("HIGH")
+        self.notification_sort_menu.grid(row=0,column=2,padx=(0,8))
+        ctk.CTkButton(notification_filter_row,text="SEARCH",width=90,command=self.refresh_notification_panel).grid(row=0,column=3)
         self.notification_box=ctk.CTkTextbox(self.page,height=90)
         self.notification_box.pack(fill="x",padx=25,pady=(0,5))
         self.notification_box.configure(state="disabled")
@@ -450,6 +456,8 @@ class FridayControlCenter:
 
     def refresh_notification_panel(self):
         all_items=self.notification_manager.recent(limit=100)
+        sort_mode=self.notification_sort_menu.get() if hasattr(self,"notification_sort_menu") else "HIGH"
+        all_items=sort_notifications(all_items, descending=sort_mode=="HIGH")
         types=available_notification_types(all_items)
         values=["ALL"]+types
         if hasattr(self,"notification_type_menu"):
