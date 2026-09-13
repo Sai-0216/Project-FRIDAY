@@ -9,6 +9,7 @@ try:
     from frontend.activity_search import filter_activity
     from frontend.activity_selection import select_activity, activity_labels
     from frontend.activity_navigation import previous_index, next_index, navigation_state
+    from frontend.activity_summary import format_activity_summary
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -20,6 +21,7 @@ except ModuleNotFoundError:
     from activity_search import filter_activity
     from activity_selection import select_activity, activity_labels
     from activity_navigation import previous_index, next_index, navigation_state
+    from activity_summary import format_activity_summary
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -168,6 +170,9 @@ class FridayControlCenter:
         self.activity_filter.set("ALL")
         self.activity_filter.grid(row=0,column=1,padx=(0,8))
         ctk.CTkButton(search_row,text="SEARCH",width=90,command=self.refresh_command_history).grid(row=0,column=2)
+        ctk.CTkLabel(self.page,text="Activity summary",font=( "Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
+        self.activity_summary_label=ctk.CTkLabel(self.page,text="Total: 0 | Completed: 0 | Failed: 0 | Pending: 0",anchor="w",justify="left")
+        self.activity_summary_label.pack(fill="x",padx=25,pady=(0,5))
         ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
         self.timeline_box=ctk.CTkTextbox(self.page,height=120)
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
@@ -281,6 +286,15 @@ class FridayControlCenter:
         selected_outcome = self.activity_filter.get() if hasattr(self, "activity_filter") else "ALL"
         items = filter_activity(items, query=query, outcome=None if selected_outcome == "ALL" else selected_outcome)
         items = items[-8:]
+        self.activity_items = list(items)
+        if hasattr(self, "activity_summary_label"):
+            self.activity_summary_label.configure(text=format_activity_summary(self.activity_items))
+        self.activity_labels = activity_labels(self.activity_items)
+        self.activity_index = len(self.activity_items) - 1 if self.activity_items else None
+        if hasattr(self, "activity_selector"):
+            self.activity_selector.configure(values=self.activity_labels or ["No activity"])
+            self.activity_selector.set(self.activity_labels[self.activity_index] if self.activity_index is not None else "No activity")
+            self.update_activity_navigation()
         lines = []
         for item in reversed(items):
             result = item.get("result") or {}
