@@ -15,6 +15,7 @@ try:
     from frontend.activity_notifications import build_activity_notification, format_activity_notification
     from frontend.notification_manager import NotificationManager
     from frontend.notification_persistence import NotificationPersistence
+    from frontend.notification_filter import filter_notifications, available_notification_types
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -32,6 +33,7 @@ except ModuleNotFoundError:
     from activity_notifications import build_activity_notification, format_activity_notification
     from notification_manager import NotificationManager
     from notification_persistence import NotificationPersistence
+    from notification_filter import filter_notifications, available_notification_types
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -53,6 +55,8 @@ class FridayControlCenter:
         self.activity_monitor_signature = ()
         self.activity_notification = None
         self.notification_manager = NotificationManager()
+        self.notification_query = ""
+        self.notification_type = "ALL"
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -195,6 +199,15 @@ class FridayControlCenter:
         self.activity_notification_label.pack(fill="x",padx=25,pady=(0,5))
         self.notification_count_label=ctk.CTkLabel(self.page,text="Notifications: 0",anchor="w")
         self.notification_count_label.pack(fill="x",padx=25,pady=(0,3))
+        notification_filter_row=ctk.CTkFrame(self.page,fg_color="transparent")
+        notification_filter_row.pack(fill="x",padx=25,pady=(0,5))
+        notification_filter_row.grid_columnconfigure(0,weight=1)
+        self.notification_query_entry=ctk.CTkEntry(notification_filter_row,placeholder_text="search notifications")
+        self.notification_query_entry.grid(row=0,column=0,sticky="ew",padx=(0,8))
+        self.notification_type_menu=ctk.CTkOptionMenu(notification_filter_row,values=["ALL"],width=120,command=lambda _: self.refresh_notification_panel())
+        self.notification_type_menu.set("ALL")
+        self.notification_type_menu.grid(row=0,column=1,padx=(0,8))
+        ctk.CTkButton(notification_filter_row,text="SEARCH",width=90,command=self.refresh_notification_panel).grid(row=0,column=2)
         self.notification_box=ctk.CTkTextbox(self.page,height=90)
         self.notification_box.pack(fill="x",padx=25,pady=(0,5))
         self.notification_box.configure(state="disabled")
@@ -436,12 +449,22 @@ class FridayControlCenter:
         self.update_activity_navigation()
 
     def refresh_notification_panel(self):
-        items=self.notification_manager.recent(limit=10)
+        all_items=self.notification_manager.recent(limit=100)
+        types=available_notification_types(all_items)
+        values=["ALL"]+types
+        if hasattr(self,"notification_type_menu"):
+            self.notification_type_menu.configure(values=values)
+            current=self.notification_type_menu.get()
+            if current not in values:
+                self.notification_type_menu.set("ALL")
+        query=self.notification_query_entry.get().strip() if hasattr(self,"notification_query_entry") else ""
+        selected_type=self.notification_type_menu.get() if hasattr(self,"notification_type_menu") else "ALL"
+        items=filter_notifications(all_items,query=query,notification_type=None if selected_type=="ALL" else selected_type)
         self.notification_count_label.configure(text="Notifications: {}".format(self.notification_manager.count()))
         lines=[]
         for item in reversed(items):
             lines.append(format_activity_notification(item))
-        text=chr(10).join(lines) if lines else "No active notifications."
+        text=chr(10).join(lines) if lines else "No matching notifications."
         self.notification_box.configure(state="normal")
         self.notification_box.delete("1.0","end")
         self.notification_box.insert("1.0",text)
