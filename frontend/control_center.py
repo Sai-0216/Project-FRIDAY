@@ -13,6 +13,7 @@ try:
     from frontend.activity_export import export_activity_json
     from frontend.activity_refresh import activity_signature, detect_activity_changes
     from frontend.activity_notifications import build_activity_notification, format_activity_notification
+    from frontend.notification_manager import NotificationManager
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -28,6 +29,7 @@ except ModuleNotFoundError:
     from activity_export import export_activity_json
     from activity_refresh import activity_signature, detect_activity_changes
     from activity_notifications import build_activity_notification, format_activity_notification
+    from notification_manager import NotificationManager
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -48,6 +50,7 @@ class FridayControlCenter:
         self.activity_monitor_after_id = None
         self.activity_monitor_signature = ()
         self.activity_notification = None
+        self.notification_manager = NotificationManager()
         self.monitor_signature = {}
         self.persistent_history = PersistentActivityStore()
         self._build()
@@ -185,6 +188,15 @@ class FridayControlCenter:
         self.activity_summary_label.pack(fill="x",padx=25,pady=(0,5))
         self.activity_notification_label=ctk.CTkLabel(self.page,text="No new activity.",anchor="w",justify="left")
         self.activity_notification_label.pack(fill="x",padx=25,pady=(0,5))
+        self.notification_count_label=ctk.CTkLabel(self.page,text="Notifications: 0",anchor="w")
+        self.notification_count_label.pack(fill="x",padx=25,pady=(0,3))
+        self.notification_box=ctk.CTkTextbox(self.page,height=90)
+        self.notification_box.pack(fill="x",padx=25,pady=(0,5))
+        self.notification_box.configure(state="disabled")
+        notification_actions=ctk.CTkFrame(self.page,fg_color="transparent")
+        notification_actions.pack(fill="x",padx=25,pady=(0,8))
+        ctk.CTkButton(notification_actions,text="DISMISS LATEST",width=140,height=34,command=self.dismiss_latest_notification).pack(side="left",padx=(0,8))
+        ctk.CTkButton(notification_actions,text="CLEAR ALL",width=110,height=34,command=self.clear_notifications).pack(side="left")
         ctk.CTkLabel(self.page,text="Activity timeline",font=("Arial",13,"bold")).pack(anchor="w",padx=25,pady=(8,3))
         self.timeline_box=ctk.CTkTextbox(self.page,height=120)
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
@@ -233,6 +245,7 @@ class FridayControlCenter:
             if detect_activity_changes(self.activity_monitor_signature,current):
                 notification=build_activity_notification(self.activity_monitor_signature,current)
                 self.activity_notification=notification
+                self.notification_manager.add(notification)
                 if hasattr(self,"activity_notification_label"):
                     self.activity_notification_label.configure(text=format_activity_notification(notification))
                 self.activity_monitor_signature=current
@@ -415,6 +428,32 @@ class FridayControlCenter:
         label=self.activity_labels[self.activity_index]
         self.activity_selector.set(label)
         self.update_activity_navigation()
+
+    def refresh_notification_panel(self):
+        items=self.notification_manager.recent(limit=10)
+        self.notification_count_label.configure(text="Notifications: {}".format(self.notification_manager.count()))
+        lines=[]
+        for item in reversed(items):
+            lines.append(format_activity_notification(item))
+        text=chr(10).join(lines) if lines else "No active notifications."
+        self.notification_box.configure(state="normal")
+        self.notification_box.delete("1.0","end")
+        self.notification_box.insert("1.0",text)
+        self.notification_box.configure(state="disabled")
+
+    def dismiss_latest_notification(self):
+        count=self.notification_manager.count()
+        if count <= 0:
+            self.command_result.configure(text="No notifications to dismiss.")
+            return
+        self.notification_manager.dismiss(count-1)
+        self.refresh_notification_panel()
+        self.command_result.configure(text="Latest notification dismissed.")
+
+    def clear_notifications(self):
+        removed=self.notification_manager.clear()
+        self.refresh_notification_panel()
+        self.command_result.configure(text="Cleared {} notification{}.".format(len(removed),"" if len(removed)==1 else "s"))
 
     def export_current_activity(self):
         from pathlib import Path
