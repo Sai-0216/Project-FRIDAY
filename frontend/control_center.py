@@ -10,6 +10,7 @@ try:
     from frontend.activity_selection import select_activity, activity_labels
     from frontend.activity_navigation import previous_index, next_index, navigation_state
     from frontend.activity_summary import format_activity_summary
+    from frontend.activity_export import export_activity_json
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     from activity_selection import select_activity, activity_labels
     from activity_navigation import previous_index, next_index, navigation_state
     from activity_summary import format_activity_summary
+    from activity_export import export_activity_json
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -190,6 +192,7 @@ class FridayControlCenter:
         self.next_activity_button=ctk.CTkButton(navigation_row,text="NEXT",width=110,height=34,command=self.show_next_activity)
         self.next_activity_button.pack(side="left",padx=8)
         ctk.CTkButton(self.page,text="SELECTED DETAILS",height=36,command=self.show_selected_activity_details).pack(anchor="w",padx=25,pady=(0,10))
+        ctk.CTkButton(self.page,text="EXPORT JSON",height=36,command=self.export_current_activity).pack(anchor="w",padx=25,pady=(0,10))
         self.refresh_devices()
         self.start_device_monitor()
 
@@ -361,6 +364,13 @@ class FridayControlCenter:
         label=self.activity_labels[self.activity_index]
         self.activity_selector.set(label)
         self.update_activity_navigation()
+
+    def export_current_activity(self):
+        from pathlib import Path
+        output=Path("data/frontend_activity_export.json")
+        output.parent.mkdir(parents=True,exist_ok=True)
+        output.write_text(export_activity_json(getattr(self,"activity_items",[])),encoding="utf-8")
+        self.command_result.configure(text="Activity exported: {}".format(output))
 
     def show_selected_activity_details(self):
         label = self.activity_selector.get().strip()
