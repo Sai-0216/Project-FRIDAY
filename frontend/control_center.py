@@ -2,9 +2,11 @@ import customtkinter as ctk
 try:
     from frontend.device_control import list_devices, send_command, broadcast_command
     from frontend.result_control import latest_device_result, format_execution_result
+    from frontend.device_monitor import device_signature, detect_device_changes
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
     from result_control import latest_device_result, format_execution_result
+    from device_monitor import device_signature, detect_device_changes
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -20,6 +22,8 @@ class FridayControlCenter:
         self.root.minsize(1050, 650)
 
         self.page_title = ctk.StringVar(value="CHAT")
+        self.monitor_after_id = None
+        self.monitor_signature = {}
         self._build()
 
     def _build(self):
@@ -67,6 +71,8 @@ class FridayControlCenter:
         self.show_page("CHAT")
 
     def show_page(self, name):
+        if self.page_title.get() == "DEVICES" and name != "DEVICES":
+            self.stop_device_monitor()
         if name not in PAGES:
             name = "CHAT"
 
@@ -111,6 +117,9 @@ class FridayControlCenter:
         ctk.CTkLabel(self.page,text='Selected device',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(10,3))
         self.selected_label=ctk.CTkLabel(self.page,text='None selected')
         self.selected_label.pack(anchor='w',padx=25)
+        ctk.CTkLabel(self.page,text='Latest execution result',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(8,3))
+        self.execution_result=ctk.CTkLabel(self.page,text='No execution result available.',justify='left',anchor='w',wraplength=800)
+        self.execution_result.pack(fill='x',padx=25,pady=(0,8))
         ctk.CTkLabel(self.page,text='Command',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(12,3))
         command_row=ctk.CTkFrame(self.page,fg_color='transparent')
         command_row.pack(fill='x',padx=25,pady=5)
@@ -130,10 +139,41 @@ class FridayControlCenter:
         ctk.CTkButton(actions,text='REFRESH',height=36,command=self.refresh_devices).pack(side='left')
         self.command_result=ctk.CTkLabel(self.page,text='')
         self.command_result.pack(pady=8)
-        ctk.CTkLabel(self.page,text='Latest execution result',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(8,3))
-        self.execution_result=ctk.CTkLabel(self.page,text='No execution result available.',justify='left',anchor='w',wraplength=800)
-        self.execution_result.pack(fill='x',padx=25,pady=(0,8))
         self.refresh_devices()
+        self.start_device_monitor()
+
+    def start_device_monitor(self):
+        self.stop_device_monitor()
+        self.monitor_signature = device_signature(list_devices() or [])
+        self.monitor_after_id = self.root.after(2000, self._poll_device_monitor)
+
+    def stop_device_monitor(self):
+        if self.monitor_after_id is not None:
+            try:
+                self.root.after_cancel(self.monitor_after_id)
+            except Exception:
+                pass
+            self.monitor_after_id = None
+
+    def _poll_device_monitor(self):
+        self.monitor_after_id = None
+        if self.page_title.get() != "DEVICES":
+            return
+        try:
+            devices = list_devices()
+            if devices is not None:
+                current = device_signature(devices)
+                changes = detect_device_changes(self.monitor_signature, current)
+                if changes:
+                    self.monitor_signature = current
+                    self.refresh_devices()
+                else:
+                    self.monitor_signature = current
+        except Exception as e:
+            self.command_result.configure(text=f"Device monitor error: {e}")
+        finally:
+            if self.page_title.get() == "DEVICES":
+                self.monitor_after_id = self.root.after(2000, self._poll_device_monitor)
 
     def refresh_devices(self):
         devices=list_devices()
