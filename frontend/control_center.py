@@ -100,51 +100,94 @@ class FridayControlCenter:
         ).pack()
 
     def devices_page(self):
-        ctk.CTkLabel(self.page,text="Connected devices",font=("Arial",22,"bold")).pack(pady=(25,10))
-        self.device_status=ctk.CTkLabel(self.page,text="Checking devices...")
+        ctk.CTkLabel(self.page,text='Connected devices',font=('Arial',22,'bold')).pack(pady=(20,8))
+        self.device_status=ctk.CTkLabel(self.page,text='Checking devices...')
         self.device_status.pack(pady=5)
-        self.device_list=ctk.CTkTextbox(self.page,height=180,font=("Consolas",13))
-        self.device_list.pack(fill="x",padx=25,pady=15)
-        self.device_list.configure(state="disabled")
-        self.command_device=ctk.StringVar(value="")
-        self.command_entry=ctk.CTkEntry(self.page,height=42,placeholder_text="Command, e.g. open notepad")
-        self.command_entry.pack(fill="x",padx=25,pady=10)
-        ctk.CTkButton(self.page,text="SEND COMMAND",height=42,command=self.send_device_command).pack(anchor="e",padx=25,pady=10)
-        self.command_result=ctk.CTkLabel(self.page,text="")
-        self.command_result.pack(pady=10)
+        self.device_cards=ctk.CTkScrollableFrame(self.page,height=180)
+        self.device_cards.pack(fill='x',padx=20,pady=10)
+        self.selected_device=ctk.StringVar(value='')
+        ctk.CTkLabel(self.page,text='Selected device',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(10,3))
+        self.selected_label=ctk.CTkLabel(self.page,text='None selected')
+        self.selected_label.pack(anchor='w',padx=25)
+        ctk.CTkLabel(self.page,text='Command',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(12,3))
+        command_row=ctk.CTkFrame(self.page,fg_color='transparent')
+        command_row.pack(fill='x',padx=25,pady=5)
+        command_row.grid_columnconfigure(0,weight=1)
+        self.command_entry=ctk.CTkEntry(command_row,height=40,placeholder_text='open notepad')
+        self.command_entry.grid(row=0,column=0,sticky='ew',padx=(0,10))
+        ctk.CTkButton(command_row,text='SEND',width=100,height=40,command=self.send_device_command).grid(row=0,column=1)
+        ctk.CTkLabel(self.page,text='Broadcast command',font=('Arial',13,'bold')).pack(anchor='w',padx=25,pady=(12,3))
+        broadcast_row=ctk.CTkFrame(self.page,fg_color='transparent')
+        broadcast_row.pack(fill='x',padx=25,pady=5)
+        broadcast_row.grid_columnconfigure(0,weight=1)
+        self.broadcast_entry=ctk.CTkEntry(broadcast_row,height=40,placeholder_text='command for all devices')
+        self.broadcast_entry.grid(row=0,column=0,sticky='ew',padx=(0,10))
+        ctk.CTkButton(broadcast_row,text='BROADCAST',width=120,height=40,command=self.send_broadcast).grid(row=0,column=1)
+        actions=ctk.CTkFrame(self.page,fg_color='transparent')
+        actions.pack(fill='x',padx=25,pady=(12,5))
+        ctk.CTkButton(actions,text='REFRESH',height=36,command=self.refresh_devices).pack(side='left')
+        self.command_result=ctk.CTkLabel(self.page,text='')
+        self.command_result.pack(pady=8)
         self.refresh_devices()
 
     def refresh_devices(self):
         devices=list_devices()
         if devices is None:
-            self.device_status.configure(text="FRIDAY Core unavailable")
+            self.device_status.configure(text='FRIDAY Core unavailable')
+            self.command_result.configure(text='Could not reach FRIDAY Core.')
             return
-        self.device_status.configure(text=f"{len(devices)} device(s) connected")
-        self.device_list.configure(state="normal")
-        self.device_list.delete("1.0","end")
+        self.device_status.configure(text=f'{len(devices)} device(s) connected')
+        for widget in self.device_cards.winfo_children():
+            widget.destroy()
         if not devices:
-            self.device_list.insert("end","No connected devices.")
+            ctk.CTkLabel(self.device_cards,text='No connected devices.').pack(pady=20)
+            self.selected_device.set('')
+            self.selected_label.configure(text='None selected')
+            return
+        current=self.selected_device.get()
+        available_ids=[]
+        for device in devices:
+            device_id=device.get('device_id','unknown') if isinstance(device,dict) else str(device)
+            online=device.get('online',False) if isinstance(device,dict) else True
+            available_ids.append(device_id)
+            card=ctk.CTkFrame(self.device_cards,corner_radius=10)
+            card.pack(fill='x',padx=5,pady=5)
+            state='ONLINE' if online else 'OFFLINE'
+            ctk.CTkLabel(card,text=f'{"●" if online else "○"} {device_id}',font=('Arial',15,'bold')).pack(side='left',padx=12,pady=10)
+            ctk.CTkLabel(card,text=state).pack(side='left',padx=8)
+            ctk.CTkButton(card,text='SELECT',width=90,command=lambda d=device_id:self.select_device(d)).pack(side='right',padx=10,pady=8)
+        if current not in available_ids:
+            self.select_device(available_ids[0])
         else:
-            for device in devices:
-                device_id=device.get("device_id","unknown") if isinstance(device,dict) else str(device)
-                online=device.get("online",False) if isinstance(device,dict) else True
-                marker="ONLINE" if online else "OFFLINE"
-                self.device_list.insert("end",f"[{marker}] {device_id}\n")
-                if not self.command_device.get():
-                    self.command_device.set(device_id)
-        self.device_list.configure(state="disabled")
+            self.selected_label.configure(text=current)
+
+    def select_device(self,device_id):
+        self.selected_device.set(device_id)
+        self.selected_label.configure(text=device_id)
+        self.command_result.configure(text=f'Selected {device_id}')
 
     def send_device_command(self):
+        device_id=self.selected_device.get().strip()
         command=self.command_entry.get().strip()
-        device_id=self.command_device.get().strip()
         if not device_id or not command:
-            self.command_result.configure(text="Select a device and enter a command.")
+            self.command_result.configure(text='Select a device and enter a command.')
             return
         result=send_command(device_id,command)
-        if isinstance(result,dict) and result.get("success") is True:
-            self.command_result.configure(text=f"Command sent to {device_id} ✓")
+        if isinstance(result,dict) and result.get('success') is True:
+            self.command_result.configure(text=f'Command sent to {device_id} ✓')
         else:
-            self.command_result.configure(text="Command could not be sent.")
+            self.command_result.configure(text='Command could not be sent.')
+
+    def send_broadcast(self):
+        command=self.broadcast_entry.get().strip()
+        if not command:
+            self.command_result.configure(text='Enter a broadcast command.')
+            return
+        result=broadcast_command(command)
+        if isinstance(result,dict) and result.get('success') is True:
+            self.command_result.configure(text='Broadcast sent to connected devices ✓')
+        else:
+            self.command_result.configure(text='Broadcast could not be sent.')
 
     def run(self):
         self.root.mainloop()
