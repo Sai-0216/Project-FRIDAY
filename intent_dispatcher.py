@@ -30,7 +30,6 @@ from proactive.decision_quality import DecisionQuality
 from proactive.reasoning_feedback import ReasoningFeedback
 from proactive.self_correction import SelfCorrection
 from proactive.reasoning_strategy import ReasoningStrategy
-from proactive.self_correction import SelfCorrectionStore
 
 
 class IntentDispatcher:
