@@ -1,4 +1,8 @@
 import customtkinter as ctk
+try:
+    from frontend.device_control import list_devices, send_command
+except ModuleNotFoundError:
+    from device_control import list_devices, send_command
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
 
@@ -69,6 +73,10 @@ class FridayControlCenter:
         for widget in self.page.winfo_children():
             widget.destroy()
 
+        if name == "DEVICES":
+            self.devices_page()
+            return
+
         if name == "CHAT":
             ctk.CTkLabel(
                 self.page,
@@ -90,6 +98,53 @@ class FridayControlCenter:
             self.page,
             text="Frontend foundation ready.",
         ).pack()
+
+    def devices_page(self):
+        ctk.CTkLabel(self.page,text="Connected devices",font=("Arial",22,"bold")).pack(pady=(25,10))
+        self.device_status=ctk.CTkLabel(self.page,text="Checking devices...")
+        self.device_status.pack(pady=5)
+        self.device_list=ctk.CTkTextbox(self.page,height=180,font=("Consolas",13))
+        self.device_list.pack(fill="x",padx=25,pady=15)
+        self.device_list.configure(state="disabled")
+        self.command_device=ctk.StringVar(value="")
+        self.command_entry=ctk.CTkEntry(self.page,height=42,placeholder_text="Command, e.g. open notepad")
+        self.command_entry.pack(fill="x",padx=25,pady=10)
+        ctk.CTkButton(self.page,text="SEND COMMAND",height=42,command=self.send_device_command).pack(anchor="e",padx=25,pady=10)
+        self.command_result=ctk.CTkLabel(self.page,text="")
+        self.command_result.pack(pady=10)
+        self.refresh_devices()
+
+    def refresh_devices(self):
+        devices=list_devices()
+        if devices is None:
+            self.device_status.configure(text="FRIDAY Core unavailable")
+            return
+        self.device_status.configure(text=f"{len(devices)} device(s) connected")
+        self.device_list.configure(state="normal")
+        self.device_list.delete("1.0","end")
+        if not devices:
+            self.device_list.insert("end","No connected devices.")
+        else:
+            for device in devices:
+                device_id=device.get("device_id","unknown") if isinstance(device,dict) else str(device)
+                online=device.get("online",False) if isinstance(device,dict) else True
+                marker="ONLINE" if online else "OFFLINE"
+                self.device_list.insert("end",f"[{marker}] {device_id}\n")
+                if not self.command_device.get():
+                    self.command_device.set(device_id)
+        self.device_list.configure(state="disabled")
+
+    def send_device_command(self):
+        command=self.command_entry.get().strip()
+        device_id=self.command_device.get().strip()
+        if not device_id or not command:
+            self.command_result.configure(text="Select a device and enter a command.")
+            return
+        result=send_command(device_id,command)
+        if isinstance(result,dict) and result.get("success") is True:
+            self.command_result.configure(text=f"Command sent to {device_id} ✓")
+        else:
+            self.command_result.configure(text="Command could not be sent.")
 
     def run(self):
         self.root.mainloop()
