@@ -7,6 +7,7 @@ try:
     from frontend.activity_timeline import build_timeline, format_timeline
     from frontend.persistent_activity import PersistentActivityStore
     from frontend.activity_search import filter_activity
+    from frontend.activity_selection import select_activity, activity_labels
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -16,6 +17,7 @@ except ModuleNotFoundError:
     from activity_timeline import build_timeline, format_timeline
     from persistent_activity import PersistentActivityStore
     from activity_search import filter_activity
+    from activity_selection import select_activity, activity_labels
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -169,6 +171,10 @@ class FridayControlCenter:
         self.timeline_box.pack(fill="x",padx=25,pady=(0,8))
         self.timeline_box.configure(state="disabled")
         ctk.CTkButton(self.page,text="LATEST DETAILS",height=36,command=self.show_latest_activity_details).pack(anchor="w",padx=25,pady=(2,10))
+        self.activity_selector=ctk.CTkOptionMenu(self.page,values=["No activity"],width=360)
+        self.activity_selector.set("No activity")
+        self.activity_selector.pack(anchor="w",padx=25,pady=(2,5))
+        ctk.CTkButton(self.page,text="SELECTED DETAILS",height=36,command=self.show_selected_activity_details).pack(anchor="w",padx=25,pady=(0,10))
         self.refresh_devices()
         self.start_device_monitor()
 
@@ -294,6 +300,27 @@ class FridayControlCenter:
         box=ctk.CTkTextbox(popup,height=260)
         box.pack(fill="both",expand=True,padx=20,pady=10)
         box.insert("1.0",format_activity_details(self.activity_items[-1]))
+        box.configure(state="disabled")
+        ctk.CTkButton(popup,text="CLOSE",width=100,command=popup.destroy).pack(pady=(0,15))
+    def show_selected_activity_details(self):
+        label = self.activity_selector.get().strip()
+        labels = getattr(self, "activity_labels", [])
+        if not label or label == "No activity" or label not in labels:
+            self.command_result.configure(text="Select an activity to view details.")
+            return
+        index = labels.index(label)
+        item = select_activity(self.activity_items, index)
+        if item is None:
+            self.command_result.configure(text="Selected activity is unavailable.")
+            return
+        popup=ctk.CTkToplevel(self.root)
+        popup.title("FRIDAY Activity Details")
+        popup.geometry("650x380")
+        popup.transient(self.root)
+        ctk.CTkLabel(popup,text="Selected Activity",font=("Arial",20,"bold")).pack(pady=(20,10))
+        box=ctk.CTkTextbox(popup,height=260)
+        box.pack(fill="both",expand=True,padx=20,pady=10)
+        box.insert("1.0",format_activity_details(item))
         box.configure(state="disabled")
         ctk.CTkButton(popup,text="CLOSE",width=100,command=popup.destroy).pack(pady=(0,15))
     def record_command_history(self, device_id, command):
