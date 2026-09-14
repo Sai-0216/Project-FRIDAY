@@ -22,6 +22,7 @@ try:
     from frontend.goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
     from frontend.tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from frontend.agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
+    from frontend.system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -46,6 +47,7 @@ except ModuleNotFoundError:
     from goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
     from tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
+    from system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -74,6 +76,7 @@ class FridayControlCenter:
         self.frontend_goals = []
         self.frontend_tasks = []
         self.frontend_agents = []
+        self.frontend_system = {'cpu': 'normal', 'memory': '64%', 'status': 'online'}
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -153,6 +156,10 @@ class FridayControlCenter:
             self.agents_page()
             return
 
+        if name == "SYSTEM":
+            self.system_page()
+            return
+
         if name == "CHAT":
             ctk.CTkLabel(
                 self.page,
@@ -228,6 +235,24 @@ class FridayControlCenter:
         self.agents_box.configure(state="normal")
         self.agents_box.insert("1.0", format_agents_dashboard(agents))
         self.agents_box.configure(state="disabled")
+
+    def system_page(self):
+        system = build_system_dashboard(self.frontend_system)
+        ctk.CTkLabel(
+            self.page,
+            text="System Dashboard",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+        ctk.CTkLabel(
+            self.page,
+            text="System metrics: {}".format(system_dashboard_count(system)),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+        self.system_box = ctk.CTkTextbox(self.page, height=180)
+        self.system_box.pack(fill="x", padx=25, pady=(0, 8))
+        self.system_box.configure(state="normal")
+        self.system_box.insert("1.0", format_system_dashboard(system))
+        self.system_box.configure(state="disabled")
 
     def devices_page(self):
         ctk.CTkLabel(self.page,text='Connected devices',font=('Arial',22,'bold')).pack(pady=(20,8))
