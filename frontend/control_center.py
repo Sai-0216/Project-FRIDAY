@@ -23,6 +23,7 @@ try:
     from frontend.tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from frontend.agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
     from frontend.system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
+    from frontend.chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -48,6 +49,7 @@ except ModuleNotFoundError:
     from tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
     from system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
+    from chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -161,15 +163,7 @@ class FridayControlCenter:
             return
 
         if name == "CHAT":
-            ctk.CTkLabel(
-                self.page,
-                text="FRIDAY conversation",
-                font=("Arial", 24, "bold"),
-            ).pack(pady=(100, 10))
-            ctk.CTkLabel(
-                self.page,
-                text="Chat integration will connect to the existing FRIDAY brain.",
-            ).pack()
+            self.chat_page()
             return
 
         ctk.CTkLabel(
@@ -235,6 +229,46 @@ class FridayControlCenter:
         self.agents_box.configure(state="normal")
         self.agents_box.insert("1.0", format_agents_dashboard(agents))
         self.agents_box.configure(state="disabled")
+
+    def chat_page(self):
+        messages = build_chat_dashboard()
+
+        ctk.CTkLabel(
+            self.page,
+            text="FRIDAY Chat",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Messages: {}".format(chat_message_count()),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.chat_box = ctk.CTkTextbox(self.page, height=300)
+        self.chat_box.pack(fill="both", expand=True, padx=25, pady=(0, 8))
+
+        self.chat_box.configure(state="normal")
+        self.chat_box.insert("1.0", format_chat_dashboard())
+        self.chat_box.configure(state="disabled")
+
+        last_user = get_last_user_message()
+        last_assistant = get_last_assistant_message()
+
+        status = "Ready for conversation."
+
+        if last_user is not None:
+            status = "Last user message: {}".format(last_user)
+
+        if last_assistant is not None:
+            status += " | Last FRIDAY response: {}".format(last_assistant)
+
+        ctk.CTkLabel(
+            self.page,
+            text=status,
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 10))
+
 
     def system_page(self):
         system = build_system_dashboard(self.frontend_system)
