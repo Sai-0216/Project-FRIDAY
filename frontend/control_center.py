@@ -27,6 +27,7 @@ try:
     from frontend.unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from frontend.proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
     from frontend.personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
+    from frontend.security_dashboard import validate_security_state, security_check_count, format_security_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -56,9 +57,10 @@ except ModuleNotFoundError:
     from unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
     from personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
+    from security_dashboard import validate_security_state, security_check_count, format_security_dashboard
     from activity_details import format_activity_details
 
-PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE", "PERSONALIZATION")
+PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE", "PERSONALIZATION", "SECURITY")
 
 
 class FridayControlCenter:
@@ -356,6 +358,44 @@ class FridayControlCenter:
         )
         self.proactive_box.configure(state="disabled")
 
+
+
+    def security_page(self):
+        state = getattr(self, "frontend_security", {})
+        result = validate_security_state(state)
+
+        ctk.CTkLabel(
+            self.page,
+            text="Security",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Status: {} | Checks: {}".format(
+                result.get("status", "BLOCKED"),
+                security_check_count(state),
+            ),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.security_box = ctk.CTkTextbox(
+            self.page,
+            height=220
+        )
+        self.security_box.pack(
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=(0, 10)
+        )
+
+        self.security_box.configure(state="normal")
+        self.security_box.insert(
+            "1.0",
+            format_security_dashboard(state)
+        )
+        self.security_box.configure(state="disabled")
 
     def personalization_page(self):
         preferences = getattr(self, "frontend_personalization", [])
