@@ -193,6 +193,18 @@ class FridayControlCenter:
             self.performance_page()
             return
 
+        if name == "PERSONALIZATION":
+            self.personalization_page()
+            return
+
+        if name == "SECURITY":
+            self.security_page()
+            return
+
+        if name == "RELIABILITY":
+            self.reliability_page()
+            return
+
         ctk.CTkLabel(
             self.page,
             text=f"{name} module",
