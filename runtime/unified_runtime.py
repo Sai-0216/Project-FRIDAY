@@ -32,6 +32,7 @@ class UnifiedRuntime:
         self.name = "FRIDAY Unified Runtime"
         self.version = "31.5"
         self.running = False
+        self._started_proactive_system = False
 
         self.brain = brain
         self.planner = planner
@@ -56,13 +57,17 @@ class UnifiedRuntime:
 
         if not self.proactive_system.running:
             self.proactive_system.start()
+            self._started_proactive_system = True
+        else:
+            self._started_proactive_system = False
 
         return self.status()
 
     def stop(self):
-        if self.proactive_system.running:
+        if self._started_proactive_system and self.proactive_system.running:
             self.proactive_system.stop()
 
+        self._started_proactive_system = False
         self.running = False
 
         return self.status()
@@ -173,6 +178,7 @@ class UnifiedRuntime:
             "overall": overall,
             "running": self.running,
             "subsystems": dict(subsystem_health),
+            "started_proactive_system": self._started_proactive_system,
             "cognitive_state": self.state_snapshot(),
             "execution_tracking": self.execution_state_tracking is not None,
             "proactive_running": self.proactive_system.running,
@@ -183,6 +189,7 @@ class UnifiedRuntime:
             "name": self.name,
             "version": self.version,
             "running": self.running,
+            "started_proactive_system": self._started_proactive_system,
             "subsystems": {
                 "brain": self.brain is not None,
                 "planner": self.planner is not None,
