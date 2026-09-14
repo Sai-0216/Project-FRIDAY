@@ -20,6 +20,7 @@ try:
     from frontend.notification_grouping import group_notifications, format_notification_groups
     from frontend.notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
     from frontend.goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
+    from frontend.tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -42,6 +43,7 @@ except ModuleNotFoundError:
     from notification_grouping import group_notifications, format_notification_groups
     from notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
     from goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
+    from tasks_dashboard import build_tasks_dashboard, tasks_dashboard_count, format_tasks_dashboard
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -68,6 +70,7 @@ class FridayControlCenter:
         self.notification_sort = "HIGH"
         self.notification_grouped = True
         self.frontend_goals = []
+        self.frontend_tasks = []
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -139,6 +142,10 @@ class FridayControlCenter:
             self.goals_page()
             return
 
+        if name == "TASKS":
+            self.tasks_page()
+            return
+
         if name == "CHAT":
             ctk.CTkLabel(
                 self.page,
@@ -178,6 +185,24 @@ class FridayControlCenter:
         self.goals_box.configure(state="normal")
         self.goals_box.insert("1.0", format_goals_dashboard(goals))
         self.goals_box.configure(state="disabled")
+
+    def tasks_page(self):
+        tasks = build_tasks_dashboard(self.frontend_tasks)
+        ctk.CTkLabel(
+            self.page,
+            text="Tasks Dashboard",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+        ctk.CTkLabel(
+            self.page,
+            text="Tasks: {}".format(tasks_dashboard_count(tasks)),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+        self.tasks_box = ctk.CTkTextbox(self.page, height=180)
+        self.tasks_box.pack(fill="x", padx=25, pady=(0, 8))
+        self.tasks_box.configure(state="normal")
+        self.tasks_box.insert("1.0", format_tasks_dashboard(tasks))
+        self.tasks_box.configure(state="disabled")
 
     def devices_page(self):
         ctk.CTkLabel(self.page,text='Connected devices',font=('Arial',22,'bold')).pack(pady=(20,8))
