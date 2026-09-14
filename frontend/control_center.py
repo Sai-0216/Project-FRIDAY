@@ -26,6 +26,7 @@ try:
     from frontend.chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from frontend.unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from frontend.proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
+    from frontend.personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -54,9 +55,10 @@ except ModuleNotFoundError:
     from chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
+    from personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
     from activity_details import format_activity_details
 
-PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE")
+PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE", "PERSONALIZATION")
 
 
 class FridayControlCenter:
@@ -84,6 +86,7 @@ class FridayControlCenter:
         self.frontend_agents = []
         self.frontend_system = {'cpu': 'normal', 'memory': '64%', 'status': 'online'}
         self.frontend_proactive = []
+        self.frontend_personalization = []
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -353,6 +356,43 @@ class FridayControlCenter:
         )
         self.proactive_box.configure(state="disabled")
 
+
+    def personalization_page(self):
+        preferences = getattr(self, "frontend_personalization", [])
+        dashboard = build_personalization_dashboard(preferences)
+
+        ctk.CTkLabel(
+            self.page,
+            text="Personalization",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Preferences: {} | Rules: {}".format(
+                personalization_preference_count(preferences),
+                personalization_rule_count(preferences),
+            ),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.personalization_box = ctk.CTkTextbox(
+            self.page,
+            height=220
+        )
+        self.personalization_box.pack(
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=(0, 10)
+        )
+
+        self.personalization_box.configure(state="normal")
+        self.personalization_box.insert(
+            "1.0",
+            format_personalization_dashboard(preferences)
+        )
+        self.personalization_box.configure(state="disabled")
 
     def system_page(self):
         system = build_system_dashboard(self.frontend_system)
