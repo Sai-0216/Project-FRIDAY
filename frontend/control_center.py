@@ -19,6 +19,7 @@ try:
     from frontend.notification_priority import sort_notifications
     from frontend.notification_grouping import group_notifications, format_notification_groups
     from frontend.notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
+    from frontend.goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -40,6 +41,7 @@ except ModuleNotFoundError:
     from notification_priority import sort_notifications
     from notification_grouping import group_notifications, format_notification_groups
     from notification_read_state import mark_notification_read, mark_notification_unread, unread_count, format_read_state
+    from goals_dashboard import build_goals_dashboard, goals_dashboard_count, format_goals_dashboard
     from activity_details import format_activity_details
 
 PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
@@ -65,6 +67,7 @@ class FridayControlCenter:
         self.notification_type = "ALL"
         self.notification_sort = "HIGH"
         self.notification_grouped = True
+        self.frontend_goals = []
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -132,6 +135,10 @@ class FridayControlCenter:
             self.devices_page()
             return
 
+        if name == "GOALS":
+            self.goals_page()
+            return
+
         if name == "CHAT":
             ctk.CTkLabel(
                 self.page,
@@ -153,6 +160,24 @@ class FridayControlCenter:
             self.page,
             text="Frontend foundation ready.",
         ).pack()
+
+    def goals_page(self):
+        goals = build_goals_dashboard(self.frontend_goals)
+        ctk.CTkLabel(
+            self.page,
+            text="Goals Dashboard",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+        ctk.CTkLabel(
+            self.page,
+            text="Goals: {}".format(goals_dashboard_count(goals)),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+        self.goals_box = ctk.CTkTextbox(self.page, height=180)
+        self.goals_box.pack(fill="x", padx=25, pady=(0, 8))
+        self.goals_box.configure(state="normal")
+        self.goals_box.insert("1.0", format_goals_dashboard(goals))
+        self.goals_box.configure(state="disabled")
 
     def devices_page(self):
         ctk.CTkLabel(self.page,text='Connected devices',font=('Arial',22,'bold')).pack(pady=(20,8))
