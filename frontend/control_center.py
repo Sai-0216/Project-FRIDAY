@@ -25,6 +25,7 @@ try:
     from frontend.system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from frontend.chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from frontend.unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
+    from frontend.proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -52,9 +53,10 @@ except ModuleNotFoundError:
     from system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
     from unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
+    from proactive_dashboard import build_proactive_notifications, proactive_notification_count, format_proactive_dashboard
     from activity_details import format_activity_details
 
-PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED")
+PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE")
 
 
 class FridayControlCenter:
@@ -81,6 +83,7 @@ class FridayControlCenter:
         self.frontend_tasks = []
         self.frontend_agents = []
         self.frontend_system = {'cpu': 'normal', 'memory': '64%', 'status': 'online'}
+        self.frontend_proactive = []
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -170,6 +173,10 @@ class FridayControlCenter:
 
         if name == "UNIFIED":
             self.unified_page()
+            return
+
+        if name == "PROACTIVE":
+            self.proactive_page()
             return
 
         ctk.CTkLabel(
@@ -309,6 +316,42 @@ class FridayControlCenter:
         self.unified_box.configure(state="normal")
         self.unified_box.insert("1.0", format_unified_dashboard(dashboard))
         self.unified_box.configure(state="disabled")
+
+
+    def proactive_page(self):
+        decisions = getattr(self, "frontend_proactive", [])
+
+        ctk.CTkLabel(
+            self.page,
+            text="Proactive Intelligence",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Proactive notifications: {}".format(
+                proactive_notification_count(decisions)
+            ),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.proactive_box = ctk.CTkTextbox(
+            self.page,
+            height=220
+        )
+        self.proactive_box.pack(
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=(0, 10)
+        )
+
+        self.proactive_box.configure(state="normal")
+        self.proactive_box.insert(
+            "1.0",
+            format_proactive_dashboard(decisions)
+        )
+        self.proactive_box.configure(state="disabled")
 
 
     def system_page(self):
