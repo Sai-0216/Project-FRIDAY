@@ -24,6 +24,7 @@ try:
     from frontend.agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
     from frontend.system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from frontend.chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
+    from frontend.unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -50,9 +51,10 @@ except ModuleNotFoundError:
     from agents_dashboard import build_agents_dashboard, agents_dashboard_count, format_agents_dashboard
     from system_dashboard import build_system_dashboard, system_dashboard_count, format_system_dashboard
     from chat_dashboard import build_chat_dashboard, chat_message_count, get_last_user_message, get_last_assistant_message, format_chat_dashboard
+    from unified_dashboard import build_unified_dashboard, unified_dashboard_counts, format_unified_dashboard
     from activity_details import format_activity_details
 
-PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM")
+PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED")
 
 
 class FridayControlCenter:
@@ -166,6 +168,10 @@ class FridayControlCenter:
             self.chat_page()
             return
 
+        if name == "UNIFIED":
+            self.unified_page()
+            return
+
         ctk.CTkLabel(
             self.page,
             text=f"{name} module",
@@ -268,6 +274,41 @@ class FridayControlCenter:
             text=status,
             anchor="w",
         ).pack(fill="x", padx=25, pady=(0, 10))
+
+
+    def unified_page(self):
+        dashboard = build_unified_dashboard(
+            self.frontend_goals,
+            self.frontend_tasks,
+            self.frontend_agents,
+            self.frontend_system,
+        )
+
+        counts = unified_dashboard_counts(dashboard)
+
+        ctk.CTkLabel(
+            self.page,
+            text="Unified Dashboard",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Goals: {} | Tasks: {} | Agents: {} | System metrics: {}".format(
+                counts.get("goals", 0),
+                counts.get("tasks", 0),
+                counts.get("agents", 0),
+                counts.get("system", 0),
+            ),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.unified_box = ctk.CTkTextbox(self.page, height=220)
+        self.unified_box.pack(fill="both", expand=True, padx=25, pady=(0, 10))
+
+        self.unified_box.configure(state="normal")
+        self.unified_box.insert("1.0", format_unified_dashboard(dashboard))
+        self.unified_box.configure(state="disabled")
 
 
     def system_page(self):
