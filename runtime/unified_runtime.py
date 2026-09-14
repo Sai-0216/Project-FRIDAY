@@ -1,7 +1,9 @@
-"""FRIDAY V3 - Phase 31.4 Unified Runtime Health and State."""
+﻿"""FRIDAY V3 - Phase 31.5 Unified Runtime Entry Boundary."""
 
+from dataclasses import dataclass
 from brain import brain
 from planner import planner
+from proactive.event import Event
 from proactive.proactive_engine import proactive_engine
 from proactive.proactive_system import proactive_system
 from proactive.agent_coordination import agent_coordination
@@ -12,11 +14,23 @@ from frontend.device_control import list_devices, send_command, broadcast_comman
 from frontend.control_center import FridayControlCenter
 
 
+@dataclass(frozen=True)
+class RuntimeTask:
+    task: object
+
+
+@dataclass(frozen=True)
+class RuntimeExecutionResult:
+    result: object
+    attempt_count: int = 1
+    max_retries: int = 2
+
+
 class UnifiedRuntime:
 
     def __init__(self):
         self.name = "FRIDAY Unified Runtime"
-        self.version = "31.4"
+        self.version = "31.5"
         self.running = False
 
         self.brain = brain
@@ -88,6 +102,29 @@ class UnifiedRuntime:
             attempt_count=attempt_count,
             max_retries=max_retries,
         )
+
+    def handle(self, request):
+        """Route a unified runtime request to its existing subsystem owner."""
+        if not self.running:
+            return None
+
+        if isinstance(request, str):
+            return self.process_command(request)
+
+        if isinstance(request, Event):
+            return self.process_event(request)
+
+        if isinstance(request, RuntimeTask):
+            return self.coordinate_task(request.task)
+
+        if isinstance(request, RuntimeExecutionResult):
+            return self.recover_execution(
+                request.result,
+                attempt_count=request.attempt_count,
+                max_retries=request.max_retries,
+            )
+
+        return None
 
     def list_devices(self):
         if not self.running:
