@@ -29,6 +29,7 @@ try:
     from frontend.personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
     from frontend.security_dashboard import validate_security_state, security_check_count, format_security_dashboard
     from frontend.reliability_dashboard import validate_reliability_state, reliability_check_count, format_reliability_dashboard
+    from frontend.performance_dashboard import validate_performance_state, performance_check_count, format_performance_dashboard
     from frontend.activity_details import format_activity_details
 except ModuleNotFoundError:
     from device_control import list_devices, send_command, broadcast_command
@@ -60,9 +61,10 @@ except ModuleNotFoundError:
     from personalization_dashboard import build_personalization_dashboard, personalization_preference_count, personalization_rule_count, format_personalization_dashboard
     from security_dashboard import validate_security_state, security_check_count, format_security_dashboard
     from reliability_dashboard import validate_reliability_state, reliability_check_count, format_reliability_dashboard
+    from performance_dashboard import validate_performance_state, performance_check_count, format_performance_dashboard
     from activity_details import format_activity_details
 
-PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE", "PERSONALIZATION", "SECURITY", "RELIABILITY")
+PAGES = ("CHAT", "DEVICES", "GOALS", "TASKS", "AGENTS", "SYSTEM", "UNIFIED", "PROACTIVE", "PERSONALIZATION", "SECURITY", "RELIABILITY", "PERFORMANCE")
 
 
 class FridayControlCenter:
@@ -91,6 +93,7 @@ class FridayControlCenter:
         self.frontend_system = {'cpu': 'normal', 'memory': '64%', 'status': 'online'}
         self.frontend_proactive = []
         self.frontend_personalization = []
+        self.frontend_performance = {"elapsed_ms": 0}
         self.notification_persistence = NotificationPersistence()
         for item in self.notification_persistence.load():
             self.notification_manager.add(item)
@@ -184,6 +187,10 @@ class FridayControlCenter:
 
         if name == "PROACTIVE":
             self.proactive_page()
+            return
+
+        if name == "PERFORMANCE":
+            self.performance_page()
             return
 
         ctk.CTkLabel(
@@ -436,6 +443,43 @@ class FridayControlCenter:
             format_security_dashboard(state)
         )
         self.security_box.configure(state="disabled")
+
+    def performance_page(self):
+        state = getattr(self, "frontend_performance", {})
+        result = validate_performance_state(state)
+
+        ctk.CTkLabel(
+            self.page,
+            text="Performance",
+            font=("Arial", 22, "bold"),
+        ).pack(pady=(20, 8))
+
+        ctk.CTkLabel(
+            self.page,
+            text="Level: {} | Checks: {}".format(
+                result.get("level", "INVALID"),
+                performance_check_count(state),
+            ),
+            anchor="w",
+        ).pack(fill="x", padx=25, pady=(0, 8))
+
+        self.performance_box = ctk.CTkTextbox(
+            self.page,
+            height=220
+        )
+        self.performance_box.pack(
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=(0, 10)
+        )
+
+        self.performance_box.configure(state="normal")
+        self.performance_box.insert(
+            "1.0",
+            format_performance_dashboard(state)
+        )
+        self.performance_box.configure(state="disabled")
 
     def personalization_page(self):
         preferences = getattr(self, "frontend_personalization", [])
