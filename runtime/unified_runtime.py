@@ -1,4 +1,4 @@
-"""FRIDAY V3 - Phase 31.3 Unified Runtime Coordination."""
+"""FRIDAY V3 - Phase 31.4 Unified Runtime Health and State."""
 
 from brain import brain
 from planner import planner
@@ -6,6 +6,8 @@ from proactive.proactive_engine import proactive_engine
 from proactive.proactive_system import proactive_system
 from proactive.agent_coordination import agent_coordination
 from proactive.execution_recovery import execution_recovery
+from proactive.state_manager import state_manager
+from proactive.execution_state_tracking import execution_state_tracking
 from frontend.device_control import list_devices, send_command, broadcast_command
 from frontend.control_center import FridayControlCenter
 
@@ -14,7 +16,7 @@ class UnifiedRuntime:
 
     def __init__(self):
         self.name = "FRIDAY Unified Runtime"
-        self.version = "31.3"
+        self.version = "31.4"
         self.running = False
 
         self.brain = brain
@@ -23,6 +25,8 @@ class UnifiedRuntime:
         self.proactive_system = proactive_system
         self.agent_coordination = agent_coordination
         self.execution_recovery = execution_recovery
+        self.state_manager = state_manager
+        self.execution_state_tracking = execution_state_tracking
         self.device_control = {
             "list_devices": list_devices,
             "send_command": send_command,
@@ -109,6 +113,34 @@ class UnifiedRuntime:
 
         return self.frontend_class()
 
+    def state_snapshot(self):
+        if self.state_manager is None:
+            return None
+
+        return self.state_manager.snapshot()
+
+    def health(self):
+        state = self.status()
+        subsystem_health = state["subsystems"]
+
+        if not all(subsystem_health.values()):
+            overall = "DEGRADED"
+        elif not self.running:
+            overall = "STOPPED"
+        elif not self.proactive_system.running:
+            overall = "DEGRADED"
+        else:
+            overall = "HEALTHY"
+
+        return {
+            "overall": overall,
+            "running": self.running,
+            "subsystems": dict(subsystem_health),
+            "cognitive_state": self.state_snapshot(),
+            "execution_tracking": self.execution_state_tracking is not None,
+            "proactive_running": self.proactive_system.running,
+        }
+
     def status(self):
         return {
             "name": self.name,
@@ -121,6 +153,8 @@ class UnifiedRuntime:
                 "proactive_system": self.proactive_system is not None,
                 "agent_coordination": self.agent_coordination is not None,
                 "execution_recovery": self.execution_recovery is not None,
+                "state_manager": self.state_manager is not None,
+                "execution_state_tracking": self.execution_state_tracking is not None,
                 "device_control": all(callable(value) for value in self.device_control.values()),
                 "frontend": self.frontend_class is not None,
             },
