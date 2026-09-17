@@ -162,6 +162,49 @@ class WorldModel:
 
             return True
 
+    def get_device_state(self):
+        return self.get("devices")
+
+    def set_device_state(self, value):
+        return self.update("devices", value)
+
+    def update_device_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["devices"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["devices"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["devices"] = previous
+                return False
+
+            return True
+
+    def capture_device_state(self):
+        try:
+            from modules.device_state import device_state
+
+            state = device_state.snapshot()
+
+        except Exception:
+            return False
+
+        if not isinstance(state, dict):
+            return False
+
+        return self.set_device_state(state)
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
