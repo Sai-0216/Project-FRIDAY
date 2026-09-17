@@ -199,6 +199,24 @@ class UnifiedRuntime:
             "execution_tracking": self._execution_tracking_state,
         }
 
+    def runtime_summary(self):
+        state = self.status()
+
+        return {
+            "name": self.name,
+            "version": self.version,
+            "running": self.running,
+            "overall": self.health()["overall"],
+            "proactive_running": self.proactive_system.running,
+            "cognitive_lifecycle": (
+                self.state_manager.current()
+                if self.state_manager is not None
+                else None
+            ),
+            "execution_tracking": self._execution_tracking_state,
+            "subsystems_ready": all(state["subsystems"].values()),
+        }
+
     def health(self):
         state = self.status()
         subsystem_health = state["subsystems"]
