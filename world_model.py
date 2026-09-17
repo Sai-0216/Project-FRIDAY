@@ -135,6 +135,90 @@ class WorldModel:
                 json.dumps(self.state[section])
             )
 
+    def query(
+        self,
+        section=None,
+        item_id=None,
+        key=None,
+        value=None,
+        limit=None,
+    ):
+        if section is not None and section not in self.SECTIONS:
+            return None
+
+        if item_id is not None:
+            if not isinstance(item_id, str) or not item_id.strip():
+                return None
+
+        if key is not None and not isinstance(key, str):
+            return None
+
+        if limit is not None:
+            try:
+                limit = int(limit)
+            except (TypeError, ValueError):
+                return None
+
+            if limit <= 0:
+                return []
+
+        with self.lock:
+            if section is None:
+                result = self.snapshot()
+
+                if limit is not None:
+                    return {
+                        name: value
+                        for name, value in result.items()
+                    }
+
+                return result
+
+            state = self.state[section]
+
+            if item_id is not None:
+                item_id = item_id.strip()
+
+                if item_id not in state:
+                    return None
+
+                item = json.loads(
+                    json.dumps(state[item_id])
+                )
+
+                if key is not None:
+                    if item.get(key) != value:
+                        return None
+
+                return item
+
+            if key is None:
+                result = json.loads(
+                    json.dumps(state)
+                )
+
+                if limit is not None:
+                    return dict(
+                        list(result.items())[:limit]
+                    )
+
+                return result
+
+            matches = {}
+
+            for current_id, item in state.items():
+                if isinstance(item, dict) and item.get(key) == value:
+                    matches[current_id] = json.loads(
+                        json.dumps(item)
+                    )
+
+            if limit is not None:
+                matches = dict(
+                    list(matches.items())[:limit]
+                )
+
+            return matches
+
     def get_user_state(self):
         return self.get("user")
 
