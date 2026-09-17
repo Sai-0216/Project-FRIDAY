@@ -42,6 +42,7 @@ class UnifiedRuntime:
         self.execution_recovery = execution_recovery
         self.state_manager = state_manager
         self.execution_state_tracking = execution_state_tracking
+        self._execution_tracking_state = None
         self.device_control = {
             "list_devices": list_devices,
             "send_command": send_command,
@@ -161,6 +162,43 @@ class UnifiedRuntime:
 
         return self.state_manager.snapshot()
 
+    def initialize_tracking(self, dispatch_result):
+        if not self.running:
+            return None
+
+        tracking = self.execution_state_tracking.initialize(
+            dispatch_result
+        )
+
+        if tracking is not None:
+            self._execution_tracking_state = tracking
+
+        return tracking
+
+    def update_tracking(self, task_id, new_state):
+        if not self.running:
+            return None
+
+        if self._execution_tracking_state is None:
+            return None
+
+        tracking = self.execution_state_tracking.update(
+            self._execution_tracking_state,
+            task_id,
+            new_state,
+        )
+
+        if tracking is not None:
+            self._execution_tracking_state = tracking
+
+        return tracking
+
+    def runtime_state(self):
+        return {
+            "cognitive_state": self.state_snapshot(),
+            "execution_tracking": self._execution_tracking_state,
+        }
+
     def health(self):
         state = self.status()
         subsystem_health = state["subsystems"]
@@ -180,7 +218,8 @@ class UnifiedRuntime:
             "subsystems": dict(subsystem_health),
             "started_proactive_system": self._started_proactive_system,
             "cognitive_state": self.state_snapshot(),
-            "execution_tracking": self.execution_state_tracking is not None,
+            "execution_tracking": self._execution_tracking_state,
+            "execution_tracking_available": self.execution_state_tracking is not None,
             "proactive_running": self.proactive_system.running,
         }
 
