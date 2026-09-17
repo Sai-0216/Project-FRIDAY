@@ -86,6 +86,9 @@ class UnifiedRuntime:
         if not self.running:
             return None
 
+        if not isinstance(event, Event):
+            return None
+
         return self.proactive_engine.process_event(event)
 
     def coordinate_task(self, task):
