@@ -2,7 +2,7 @@
 FRIDAY Device Client - multi-device v2.
 
 The client connects one FRIDAY installation to the central server.
-Incoming commands are passed to the existing Brain.process() method.
+Incoming commands are passed through the UnifiedRuntime command boundary.
 """
 
 import asyncio
@@ -14,10 +14,10 @@ from network.result_protocol import build_result
 
 
 class FridayDeviceClient:
-    def __init__(self, server_url, device_id=None, brain=None):
+    def __init__(self, server_url, device_id=None, runtime=None):
         self.server_url = server_url.rstrip("/")
         self.device_id = device_id or socket.gethostname().lower()
-        self.brain = brain
+        self.runtime = runtime
         self.running = True
 
     async def run(self):
@@ -64,18 +64,18 @@ class FridayDeviceClient:
 
         print(f"[FRIDAY] Remote command: {command}")
 
-        if self.brain is None:
+        if self.runtime is None:
             await websocket.send(json.dumps({
                 "type": "result",
                 "device_id": self.device_id,
                 "success": False,
-                "message": "Brain is not attached",
+                "message": "Unified runtime is not attached",
             }))
             return
 
         try:
-            self.brain.process(command)
-            result = build_result(self.device_id, command, self.brain)
+            self.runtime.process_command(command)
+            result = build_result(self.device_id, command, self.runtime)
             await websocket.send(json.dumps(result))
         except Exception as exc:
             await websocket.send(json.dumps({
