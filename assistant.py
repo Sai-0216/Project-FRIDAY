@@ -12,8 +12,8 @@ from listen import listener
 from logger import logger
 from modules import task_manager
 
-from proactive.proactive_system import proactive_system
 from proactive.notification_manager import notification_manager
+from runtime.unified_runtime import unified_runtime
 
 
 class Assistant:
@@ -50,7 +50,7 @@ class Assistant:
         # START PROACTIVE SYSTEM
         # ========================================
 
-        proactive_system.start()
+        unified_runtime.start()
 
         while True:
 
@@ -261,7 +261,7 @@ class Assistant:
                 # STOP PROACTIVE SYSTEM
                 # ------------------------------------
 
-                proactive_system.stop()
+                unified_runtime.stop()
 
                 break
 
@@ -273,7 +273,7 @@ class Assistant:
                 "Thinking"
             )
 
-            running = brain.process(
+            running = unified_runtime.process_command(
                 command
             )
 
@@ -313,7 +313,7 @@ class Assistant:
                 # STOP PROACTIVE SYSTEM
                 # ------------------------------------
 
-                proactive_system.stop()
+                unified_runtime.stop()
 
                 break
 
