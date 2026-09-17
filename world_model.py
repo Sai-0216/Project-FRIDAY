@@ -133,6 +133,35 @@ class WorldModel:
                 json.dumps(self.state[section])
             )
 
+    def get_user_state(self):
+        return self.get("user")
+
+    def set_user_state(self, value):
+        return self.update("user", value)
+
+    def update_user_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["user"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["user"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["user"] = previous
+                return False
+
+            return True
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
