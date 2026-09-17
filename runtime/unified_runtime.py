@@ -272,11 +272,35 @@ class UnifiedRuntime:
 
     def self_test(self):
         state = self.status()
+        subsystems = state["subsystems"]
+
+        checks = {
+            "subsystems_ready": all(subsystems.values()),
+            "runtime_lifecycle": (
+                self.running is True
+                if self.running
+                else self.running is False
+            ),
+            "proactive_consistency": (
+                self.proactive_system.running
+                if self.running
+                else True
+            ),
+            "state_manager_available": self.state_manager is not None,
+            "execution_tracking_available": (
+                self.execution_state_tracking is not None
+            ),
+            "device_control_callable": all(
+                callable(value) for value in self.device_control.values()
+            ),
+            "frontend_available": self.frontend_class is not None,
+        }
 
         return {
-            "valid": all(state["subsystems"].values()),
+            "valid": all(checks.values()),
             "running": state["running"],
-            "subsystems": state["subsystems"],
+            "subsystems": subsystems,
+            "checks": checks,
         }
 
 
