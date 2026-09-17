@@ -319,6 +319,35 @@ class WorldModel:
 
         return self.set_task_state(state)
 
+    def get_goal_state(self):
+        return self.get("goals")
+
+    def set_goal_state(self, value):
+        return self.update("goals", value)
+
+    def update_goal_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["goals"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["goals"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["goals"] = previous
+                return False
+
+            return True
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
