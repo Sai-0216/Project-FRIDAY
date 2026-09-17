@@ -23,6 +23,7 @@ class WorldModel:
         "tasks",
         "goals",
         "events",
+        "history",
     )
 
     def __init__(self, file=None):
@@ -48,6 +49,7 @@ class WorldModel:
             "tasks": {},
             "goals": {},
             "events": {},
+            "history": {},
             "relationships": [],
         }
 
@@ -347,6 +349,63 @@ class WorldModel:
                 return False
 
             return True
+
+    def get_history_state(self):
+        return self.get("history")
+
+    def set_history_state(self, value):
+        return self.update("history", value)
+
+    def update_history_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["history"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["history"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["history"] = previous
+                return False
+
+            return True
+
+    def capture_history_state(self):
+        try:
+            from proactive.episodic_memory import episodic_memory
+            from proactive.session_context import session_context
+
+            episodic_recent = episodic_memory.recent(1)
+            latest_session = session_context.latest()
+
+            state = {
+                "episodic": {
+                    "count": episodic_memory.count(),
+                    "latest": (
+                        episodic_recent[-1]
+                        if episodic_recent
+                        else None
+                    ),
+                },
+                "sessions": {
+                    "count": session_context.count(),
+                    "latest": latest_session,
+                },
+            }
+
+        except Exception:
+            return False
+
+        return self.set_history_state(state)
 
     def get_event_state(self):
         return self.get("events")
