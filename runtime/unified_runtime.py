@@ -199,6 +199,15 @@ class UnifiedRuntime:
             "execution_tracking": self._execution_tracking_state,
         }
 
+    def reset_state(self):
+        if not self.running:
+            return None
+
+        self.state_manager.state.reset()
+        self._execution_tracking_state = None
+
+        return self.runtime_state()
+
     def runtime_summary(self):
         state = self.status()
 
