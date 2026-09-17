@@ -205,6 +205,63 @@ class WorldModel:
 
         return self.set_device_state(state)
 
+    def get_environment_state(self):
+        return self.get("environment")
+
+    def set_environment_state(self, value):
+        return self.update("environment", value)
+
+    def update_environment_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["environment"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["environment"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["environment"] = previous
+                return False
+
+            return True
+
+    def capture_environment_state(self):
+        try:
+            from modules.environment import environment
+
+            status = environment.status_details()
+            workload = environment.workload_context()
+            correlations = environment.correlations()
+
+        except Exception:
+            return False
+
+        if not isinstance(status, dict):
+            return False
+
+        if not isinstance(workload, dict):
+            return False
+
+        if not isinstance(correlations, list):
+            return False
+
+        state = {
+            "status": status,
+            "workload": workload,
+            "correlations": correlations,
+        }
+
+        return self.set_environment_state(state)
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
