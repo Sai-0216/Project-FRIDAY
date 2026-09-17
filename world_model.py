@@ -348,6 +348,71 @@ class WorldModel:
 
             return True
 
+    def get_event_state(self):
+        return self.get("events")
+
+    def set_event_state(self, value):
+        return self.update("events", value)
+
+    def update_event_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["events"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["events"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["events"] = previous
+                return False
+
+            return True
+
+    def record_event(self, event, event_id=None):
+        try:
+            from proactive.event import Event
+
+            if not isinstance(event, Event):
+                return False
+
+            if event_id is None:
+                event_id = (
+                    f"{event.event_type}:"
+                    f"{event.source}:"
+                    f"{event.created_at.isoformat()}"
+                )
+
+            if not isinstance(event_id, str) or not event_id.strip():
+                return False
+
+            record = {
+                "event_type": event.event_type,
+                "source": event.source,
+                "data": json.loads(
+                    json.dumps(event.data)
+                ),
+                "priority": event.priority,
+                "created_at": event.created_at.isoformat(),
+            }
+
+        except Exception:
+            return False
+
+        return self.set_item(
+            "events",
+            event_id.strip(),
+            record,
+        )
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
