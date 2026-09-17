@@ -603,6 +603,41 @@ class WorldModel:
 
             return True
 
+    def update_item(self, section, item_id, values):
+        if section not in self.SECTIONS:
+            return False
+
+        if not isinstance(item_id, str) or not item_id.strip():
+            return False
+
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            if item_id.strip() not in self.state[section]:
+                return False
+
+            previous = json.loads(
+                json.dumps(self.state[section][item_id.strip()])
+            )
+
+            if not isinstance(previous, dict):
+                return False
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state[section][item_id.strip()] = updated
+            self._touch()
+
+            if not self._save():
+                self.state[section][item_id.strip()] = previous
+                return False
+
+            return True
+
     def remove_item(self, section, item_id):
         if section not in self.SECTIONS:
             return False
