@@ -262,6 +262,63 @@ class WorldModel:
 
         return self.set_environment_state(state)
 
+    def get_task_state(self):
+        return self.get("tasks")
+
+    def set_task_state(self, value):
+        return self.update("tasks", value)
+
+    def update_task_state(self, values):
+        if not isinstance(values, dict):
+            return False
+
+        with self.lock:
+            previous = json.loads(
+                json.dumps(self.state["tasks"])
+            )
+
+            updated = json.loads(
+                json.dumps(previous)
+            )
+            updated.update(values)
+
+            self.state["tasks"] = updated
+            self._touch()
+
+            if not self._save():
+                self.state["tasks"] = previous
+                return False
+
+            return True
+
+    def capture_task_state(self):
+        try:
+            from modules.task_manager import task_manager
+
+            items = task_manager.list_tasks()
+            active = task_manager.get_active_task()
+            summary = task_manager.summary()
+
+        except Exception:
+            return False
+
+        if not isinstance(items, list):
+            return False
+
+        if active is not None and not isinstance(active, dict):
+            return False
+
+        if not isinstance(summary, dict):
+            return False
+
+        state = {
+            "items": items,
+            "active": active,
+            "summary": summary,
+        }
+
+        return self.set_task_state(state)
+
     def update(self, section, value):
         if section not in self.SECTIONS:
             return False
