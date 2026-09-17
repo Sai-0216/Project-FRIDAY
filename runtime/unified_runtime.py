@@ -10,6 +10,7 @@ from proactive.agent_coordination import agent_coordination
 from proactive.execution_recovery import execution_recovery
 from proactive.state_manager import state_manager
 from proactive.execution_state_tracking import execution_state_tracking
+from world_model import world_model
 from frontend.device_control import list_devices, send_command, broadcast_command
 from frontend.control_center import FridayControlCenter
 
@@ -42,6 +43,7 @@ class UnifiedRuntime:
         self.execution_recovery = execution_recovery
         self.state_manager = state_manager
         self.execution_state_tracking = execution_state_tracking
+        self.world_model = world_model
         self._execution_tracking_state = None
         self.device_control = {
             "list_devices": list_devices,
@@ -62,7 +64,54 @@ class UnifiedRuntime:
         else:
             self._started_proactive_system = False
 
+        self.sync_world_model()
+
         return self.status()
+
+    def sync_world_model(self):
+        if self.world_model is None:
+            return None
+
+        results = {
+            "device": False,
+            "environment": False,
+            "tasks": False,
+            "history": False,
+        }
+
+        try:
+            results["device"] = bool(
+                self.world_model.capture_device_state()
+            )
+        except Exception:
+            results["device"] = False
+
+        try:
+            results["environment"] = bool(
+                self.world_model.capture_environment_state()
+            )
+        except Exception:
+            results["environment"] = False
+
+        try:
+            results["tasks"] = bool(
+                self.world_model.capture_task_state()
+            )
+        except Exception:
+            results["tasks"] = False
+
+        try:
+            results["history"] = bool(
+                self.world_model.capture_history_state()
+            )
+        except Exception:
+            results["history"] = False
+
+        return {
+            "available": True,
+            "synced": results,
+            "success": all(results.values()),
+        }
 
     def stop(self):
         if self._started_proactive_system and self.proactive_system.running:
