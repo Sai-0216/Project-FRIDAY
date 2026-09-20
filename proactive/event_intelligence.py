@@ -62,5 +62,53 @@ class EventIntelligence:
             "data": copy.deepcopy(data),
         }
 
+    def classify(self, event_or_normalized):
+        """
+        Classify an event into a broad intelligence category.
+
+        Accepts either an Event object or an already normalized
+        event dictionary.
+        """
+
+        if isinstance(event_or_normalized, Event):
+            normalized = self.normalize(event_or_normalized)
+        elif isinstance(event_or_normalized, dict):
+            normalized = copy.deepcopy(event_or_normalized)
+        else:
+            raise TypeError(
+                "event_or_normalized must be an Event or dict"
+            )
+
+        event_type = str(
+            normalized.get("event_type", "")
+        ).strip().upper()
+
+        if not event_type:
+            raise ValueError(
+                "event_type must not be empty"
+            )
+
+        classification = "unknown"
+
+        prefixes = (
+            ("ENVIRONMENT_", "environment"),
+            ("SYSTEM_", "system"),
+            ("TASK_", "task"),
+            ("GOAL_", "goal"),
+            ("REMINDER_", "reminder"),
+            ("BATTERY_", "device"),
+            ("DEVICE_", "device"),
+            ("USER_", "user"),
+        )
+
+        for prefix, category in prefixes:
+            if event_type.startswith(prefix):
+                classification = category
+                break
+
+        normalized["classification"] = classification
+
+        return normalized
+
 
 event_intelligence = EventIntelligence()
