@@ -535,5 +535,207 @@ class EventIntelligence:
             "event_b": second.get("event_id"),
         }
 
+    def query_events(
+        self,
+        events,
+        event_type=None,
+        source=None,
+        classification=None,
+        min_priority=None,
+        start_time=None,
+        end_time=None,
+        limit=None,
+    ):
+        """
+        Query event intelligence without modifying the source events.
+
+        Supports filtering by event type, source, classification,
+        minimum priority, time range, and result limit.
+
+        Event objects are normalized before filtering. Dictionary
+        inputs are copied before processing.
+        """
+
+        if events is None:
+            raise TypeError("events must be an iterable of Event or dict objects")
+
+        try:
+            event_items = list(events)
+        except TypeError:
+            raise TypeError(
+                "events must be an iterable of Event or dict objects"
+            )
+
+        normalized_events = []
+
+        for event in event_items:
+            if isinstance(event, Event):
+                normalized = self.classify(event)
+            elif isinstance(event, dict):
+                normalized = self.classify(event)
+            else:
+                raise TypeError(
+                    "events must contain only Event or dict objects"
+                )
+
+            normalized_events.append(normalized)
+
+        normalized_event_type = (
+            str(event_type).strip().upper()
+            if event_type is not None
+            else None
+        )
+
+        normalized_source = (
+            str(source).strip().lower()
+            if source is not None
+            else None
+        )
+
+        normalized_classification = (
+            str(classification).strip().lower()
+            if classification is not None
+            else None
+        )
+
+        if normalized_event_type == "":
+            normalized_event_type = None
+
+        if normalized_source == "":
+            normalized_source = None
+
+        if normalized_classification == "":
+            normalized_classification = None
+
+        if min_priority is not None:
+            try:
+                normalized_min_priority = int(min_priority)
+            except (TypeError, ValueError):
+                normalized_min_priority = 0
+        else:
+            normalized_min_priority = None
+
+        parsed_start_time = None
+        parsed_end_time = None
+
+        if start_time is not None:
+            try:
+                parsed_start_time = datetime.fromisoformat(
+                    str(start_time)
+                )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "start_time must be a valid ISO timestamp"
+                )
+
+        if end_time is not None:
+            try:
+                parsed_end_time = datetime.fromisoformat(
+                    str(end_time)
+                )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "end_time must be a valid ISO timestamp"
+                )
+
+        if (
+            parsed_start_time is not None
+            and parsed_end_time is not None
+            and parsed_start_time > parsed_end_time
+        ):
+            raise ValueError(
+                "start_time must not be later than end_time"
+            )
+
+        results = []
+
+        for normalized in normalized_events:
+            current_type = str(
+                normalized.get("event_type", "")
+            ).strip().upper()
+
+            current_source = str(
+                normalized.get("source", "")
+            ).strip().lower()
+
+            current_classification = str(
+                normalized.get("classification", "")
+            ).strip().lower()
+
+            try:
+                current_priority = int(
+                    normalized.get("priority", 0)
+                )
+            except (TypeError, ValueError):
+                current_priority = 0
+
+            if (
+                normalized_event_type is not None
+                and current_type != normalized_event_type
+            ):
+                continue
+
+            if (
+                normalized_source is not None
+                and current_source != normalized_source
+            ):
+                continue
+
+            if (
+                normalized_classification is not None
+                and current_classification != normalized_classification
+            ):
+                continue
+
+            if (
+                normalized_min_priority is not None
+                and current_priority < normalized_min_priority
+            ):
+                continue
+
+            created_at = normalized.get("created_at")
+
+            if (
+                parsed_start_time is not None
+                or parsed_end_time is not None
+            ):
+                if not created_at:
+                    continue
+
+                try:
+                    created_at_dt = datetime.fromisoformat(
+                        str(created_at)
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                if (
+                    parsed_start_time is not None
+                    and created_at_dt < parsed_start_time
+                ):
+                    continue
+
+                if (
+                    parsed_end_time is not None
+                    and created_at_dt > parsed_end_time
+                ):
+                    continue
+
+            results.append(copy.deepcopy(normalized))
+
+        if limit is not None:
+            try:
+                normalized_limit = int(limit)
+            except (TypeError, ValueError):
+                normalized_limit = 0
+
+            if normalized_limit < 0:
+                normalized_limit = 0
+
+            results = results[:normalized_limit]
+
+        return results
+
+
 
 event_intelligence = EventIntelligence()
