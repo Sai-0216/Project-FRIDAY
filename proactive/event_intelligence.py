@@ -822,5 +822,143 @@ class EventIntelligence:
         )
 
 
+    def cross_source_analysis(
+        self,
+        events,
+        near_seconds=60,
+    ):
+        """
+        Analyze temporally related activity across distinct sources.
+
+        Events from different sources are considered cross-source
+        activity when they occur within the configured temporal
+        proximity window.
+        """
+
+        if events is None:
+            raise TypeError(
+                "events must be an iterable of Event or dict objects"
+            )
+
+        try:
+            event_items = list(events)
+        except TypeError:
+            raise TypeError(
+                "events must be an iterable of Event or dict objects"
+            )
+
+        normalized_events = []
+
+        for event in event_items:
+            if isinstance(event, Event):
+                normalized = self.classify(event)
+            elif isinstance(event, dict):
+                normalized = self.classify(event)
+            else:
+                raise TypeError(
+                    "events must contain only Event or dict objects"
+                )
+
+            normalized_events.append(normalized)
+
+        try:
+            normalized_near_seconds = float(near_seconds)
+        except (TypeError, ValueError):
+            normalized_near_seconds = 60.0
+
+        if normalized_near_seconds < 0:
+            normalized_near_seconds = 0.0
+
+        source_groups = {}
+
+        for event in normalized_events:
+            source = str(
+                event.get("source", "")
+            ).strip().lower()
+
+            if not source:
+                continue
+
+            source_groups.setdefault(source, []).append(
+                copy.deepcopy(event)
+            )
+
+        sources = sorted(source_groups)
+        relationships = []
+
+        for index, first_source in enumerate(sources):
+            for second_source in sources[index + 1:]:
+                first_events = source_groups[first_source]
+                second_events = source_groups[second_source]
+
+                pair_relationships = set()
+                nearest_difference = None
+
+                for first_event in first_events:
+                    for second_event in second_events:
+                        temporal = self.temporal_relation(
+                            first_event,
+                            second_event,
+                            near_seconds=normalized_near_seconds,
+                        )
+
+                        difference = temporal[
+                            "absolute_difference_seconds"
+                        ]
+
+                        if (
+                            nearest_difference is None
+                            or difference < nearest_difference
+                        ):
+                            nearest_difference = difference
+
+                        if temporal["proximity"] in {
+                            "near",
+                            "simultaneous",
+                        }:
+                            pair_relationships.add(
+                                "temporal_related"
+                            )
+
+                        correlation = self.correlate(
+                            first_event,
+                            second_event,
+                        )
+
+                        for relationship in correlation.get(
+                            "relationships",
+                            [],
+                        ):
+                            if relationship != "source_related":
+                                pair_relationships.add(
+                                    relationship
+                                )
+
+                if pair_relationships:
+                    relationships.append({
+                        "source_a": first_source,
+                        "source_b": second_source,
+                        "relationships": sorted(
+                            pair_relationships
+                        ),
+                        "nearest_difference_seconds": (
+                            round(nearest_difference, 6)
+                            if nearest_difference is not None
+                            else None
+                        ),
+                        "related": True,
+                    })
+
+        return {
+            "source_count": len(sources),
+            "sources": sources,
+            "source_groups": {
+                source: len(source_groups[source])
+                for source in sources
+            },
+            "cross_source_relationships": relationships,
+        }
+
+
 
 event_intelligence = EventIntelligence()
