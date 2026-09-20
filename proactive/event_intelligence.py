@@ -737,5 +737,90 @@ class EventIntelligence:
         return results
 
 
+    def detect_patterns(self, events, min_occurrences=2):
+        """
+        Detect repeated event-type patterns.
+
+        This method analyzes event history without modifying the
+        source events or existing event-management components.
+        """
+
+        if events is None:
+            raise TypeError(
+                "events must be an iterable of Event or dict objects"
+            )
+
+        try:
+            event_items = list(events)
+        except TypeError:
+            raise TypeError(
+                "events must be an iterable of Event or dict objects"
+            )
+
+        try:
+            minimum = int(min_occurrences)
+        except (TypeError, ValueError):
+            minimum = 2
+
+        if minimum < 1:
+            minimum = 1
+
+        counts = {}
+        total_events = 0
+
+        for event in event_items:
+            if isinstance(event, Event):
+                normalized = self.classify(event)
+            elif isinstance(event, dict):
+                normalized = self.classify(event)
+            else:
+                raise TypeError(
+                    "events must contain only Event or dict objects"
+                )
+
+            event_type = str(
+                normalized.get("event_type", "")
+            ).strip().upper()
+
+            if not event_type:
+                continue
+
+            counts[event_type] = counts.get(event_type, 0) + 1
+            total_events += 1
+
+        patterns = []
+
+        for event_type, occurrences in counts.items():
+            if occurrences < minimum:
+                continue
+
+            frequency = (
+                occurrences / total_events
+                if total_events > 0
+                else 0.0
+            )
+
+            if occurrences >= 4:
+                confidence = "HIGH"
+            elif occurrences >= 2:
+                confidence = "MEDIUM"
+            else:
+                confidence = "LOW"
+
+            patterns.append({
+                "event_type": event_type,
+                "occurrences": occurrences,
+                "total_events": total_events,
+                "frequency": round(frequency, 3),
+                "persistent": occurrences >= minimum,
+                "confidence": confidence,
+            })
+
+        return sorted(
+            patterns,
+            key=lambda pattern: pattern["event_type"],
+        )
+
+
 
 event_intelligence = EventIntelligence()
