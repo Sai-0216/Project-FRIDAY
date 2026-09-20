@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from brain import brain
 from planner import planner
 from proactive.event import Event
+from proactive.event_intelligence import event_intelligence
 from proactive.proactive_engine import proactive_engine
 from proactive.proactive_system import proactive_system
 from proactive.agent_coordination import agent_coordination
@@ -38,6 +39,7 @@ class UnifiedRuntime:
         self.brain = brain
         self.planner = planner
         self.proactive_engine = proactive_engine
+        self.event_intelligence = event_intelligence
         self.proactive_system = proactive_system
         self.agent_coordination = agent_coordination
         self.execution_recovery = execution_recovery
@@ -139,6 +141,15 @@ class UnifiedRuntime:
             return None
 
         return self.proactive_engine.process_event(event)
+
+    def analyze_event(self, event):
+        if not self.running:
+            return None
+
+        if not isinstance(event, Event):
+            return None
+
+        return self.event_intelligence.proactive_analysis(event)
 
     def coordinate_task(self, task):
         if not self.running:
