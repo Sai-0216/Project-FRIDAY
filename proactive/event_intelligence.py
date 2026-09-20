@@ -110,6 +110,44 @@ class EventIntelligence:
 
         return normalized
 
+    def proactive_analysis(self, event):
+        """
+        Prepare event intelligence for the existing proactive
+        decision pipeline.
+
+        This method only analyzes the event. It does not execute
+        actions or modify the Event object.
+        """
+
+        if not isinstance(event, Event):
+            raise TypeError(
+                "event must be an Event object"
+            )
+
+        classification = self.classify(event)
+        priority = self.prioritize(event)
+        fingerprint = self.deduplication_fingerprint(event)
+
+        return {
+            "classification": classification.get(
+                "classification",
+                "unknown",
+            ),
+            "base_priority": priority.get(
+                "base_priority",
+                0,
+            ),
+            "effective_priority": priority.get(
+                "effective_priority",
+                0,
+            ),
+            "priority_changed": priority.get(
+                "priority_changed",
+                False,
+            ),
+            "deduplication_fingerprint": fingerprint,
+        }
+
     def record_to_world_model(
         self,
         event,
