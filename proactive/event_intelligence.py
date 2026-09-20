@@ -110,6 +110,38 @@ class EventIntelligence:
 
         return normalized
 
+    def record_to_world_model(
+        self,
+        event,
+        model=None,
+    ):
+        """
+        Persist an Event through the existing World Model API.
+
+        The World Model remains the owner of persistence.
+        """
+
+        if not isinstance(event, Event):
+            raise TypeError(
+                "event must be an Event object"
+            )
+
+        normalized = self.normalize(event)
+
+        if model is None:
+            from world_model import world_model
+            model = world_model
+
+        if not hasattr(model, "record_event"):
+            raise TypeError(
+                "model must provide record_event()"
+            )
+
+        return model.record_event(
+            event,
+            event_id=normalized["event_id"],
+        )
+
     def temporal_relation(
         self,
         event_a,
