@@ -6,7 +6,7 @@ from .event import Event
 
 class EventIntelligence:
     """
-    Phase 33.1
+    Phase 33.2
 
     Provides a normalized intelligence representation
     for existing FRIDAY Event objects.
@@ -31,8 +31,8 @@ class EventIntelligence:
         else:
             created_at = str(created_at)
 
-        event_type = str(event.event_type).strip()
-        source = str(event.source).strip()
+        event_type = str(event.event_type).strip().upper()
+        source = str(event.source).strip().lower()
 
         if not event_type:
             raise ValueError("event_type must not be empty")
@@ -47,7 +47,14 @@ class EventIntelligence:
 
         data = event.data if isinstance(event.data, dict) else {}
 
+        event_id = (
+            f"{event_type}:"
+            f"{source}:"
+            f"{created_at}"
+        )
+
         return {
+            "event_id": event_id,
             "event_type": event_type,
             "source": source,
             "priority": priority,
