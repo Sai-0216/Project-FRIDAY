@@ -110,6 +110,73 @@ class EventIntelligence:
 
         return normalized
 
+    def deduplication_fingerprint(self, event_or_normalized):
+        """
+        Build a deterministic fingerprint for event deduplication.
+
+        Volatile timestamp fields are excluded so repeated equivalent
+        events can be recognized as duplicates.
+        """
+
+        if isinstance(event_or_normalized, Event):
+            normalized = self.normalize(event_or_normalized)
+        elif isinstance(event_or_normalized, dict):
+            normalized = copy.deepcopy(event_or_normalized)
+        else:
+            raise TypeError(
+                "event_or_normalized must be an Event or dict"
+            )
+
+        event_type = str(
+            normalized.get("event_type", "")
+        ).strip().upper()
+
+        source = str(
+            normalized.get("source", "")
+        ).strip().lower()
+
+        if not event_type:
+            raise ValueError(
+                "event_type must not be empty"
+            )
+
+        if not source:
+            raise ValueError(
+                "source must not be empty"
+            )
+
+        data = normalized.get("data", {})
+        if not isinstance(data, dict):
+            data = {}
+
+        canonical_data = copy.deepcopy(data)
+
+        canonical_data.pop("created_at", None)
+        canonical_data.pop("timestamp", None)
+        canonical_data.pop("event_id", None)
+
+        import json
+        import hashlib
+
+        payload = {
+            "event_type": event_type,
+            "source": source,
+            "data": canonical_data,
+        }
+
+        serialized = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+
+        fingerprint = hashlib.sha256(
+            serialized.encode("utf-8")
+        ).hexdigest()
+
+        return fingerprint
+
     def prioritize(self, event_or_normalized):
         """
         Determine an effective priority for an event.
