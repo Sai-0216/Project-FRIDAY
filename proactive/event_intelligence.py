@@ -110,6 +110,89 @@ class EventIntelligence:
 
         return normalized
 
+    def temporal_relation(
+        self,
+        event_a,
+        event_b,
+        near_seconds=60,
+    ):
+        """
+        Determine the temporal relationship between two events.
+
+        Returns ordering, time difference, and proximity without
+        modifying either input.
+        """
+
+        if isinstance(event_a, Event):
+            first = self.normalize(event_a)
+        elif isinstance(event_a, dict):
+            first = copy.deepcopy(event_a)
+        else:
+            raise TypeError(
+                "event_a must be an Event or dict"
+            )
+
+        if isinstance(event_b, Event):
+            second = self.normalize(event_b)
+        elif isinstance(event_b, dict):
+            second = copy.deepcopy(event_b)
+        else:
+            raise TypeError(
+                "event_b must be an Event or dict"
+            )
+
+        first_time = first.get("created_at")
+        second_time = second.get("created_at")
+
+        if not first_time or not second_time:
+            raise ValueError(
+                "both events must contain created_at"
+            )
+
+        first_dt = datetime.fromisoformat(
+            str(first_time)
+        )
+        second_dt = datetime.fromisoformat(
+            str(second_time)
+        )
+
+        difference = (
+            second_dt - first_dt
+        ).total_seconds()
+
+        absolute_difference = abs(difference)
+
+        try:
+            near_seconds = float(near_seconds)
+        except (TypeError, ValueError):
+            near_seconds = 60.0
+
+        if near_seconds < 0:
+            near_seconds = 0.0
+
+        if difference < 0:
+            ordering = "after"
+        elif difference > 0:
+            ordering = "before"
+        else:
+            ordering = "simultaneous"
+
+        if absolute_difference == 0:
+            proximity = "simultaneous"
+        elif absolute_difference <= near_seconds:
+            proximity = "near"
+        else:
+            proximity = "distant"
+
+        return {
+            "event_a": first.get("event_id"),
+            "event_b": second.get("event_id"),
+            "ordering": ordering,
+            "difference_seconds": difference,
+            "absolute_difference_seconds": absolute_difference,
+            "proximity": proximity,
+        }
+
     def deduplication_fingerprint(self, event_or_normalized):
         """
         Build a deterministic fingerprint for event deduplication.
