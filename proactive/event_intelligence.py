@@ -110,6 +110,84 @@ class EventIntelligence:
 
         return normalized
 
+    def prioritize(self, event_or_normalized):
+        """
+        Determine an effective priority for an event.
+
+        Existing event priority is used as the baseline.
+        Critical and warning semantics can increase the
+        effective priority without modifying the original event.
+        """
+
+        if isinstance(event_or_normalized, Event):
+            normalized = self.classify(event_or_normalized)
+        elif isinstance(event_or_normalized, dict):
+            normalized = copy.deepcopy(event_or_normalized)
+        else:
+            raise TypeError(
+                "event_or_normalized must be an Event or dict"
+            )
+
+        event_type = str(
+            normalized.get("event_type", "")
+        ).strip().upper()
+
+        if not event_type:
+            raise ValueError(
+                "event_type must not be empty"
+            )
+
+        try:
+            base_priority = int(
+                normalized.get("priority", 0)
+            )
+        except (TypeError, ValueError):
+            base_priority = 0
+
+        effective_priority = base_priority
+
+        critical_markers = (
+            "CRITICAL",
+            "EMERGENCY",
+            "FAILURE",
+            "FAILED",
+            "ERROR",
+        )
+
+        warning_markers = (
+            "WARNING",
+            "WARN",
+            "DEGRADED",
+            "LOW",
+        )
+
+        if any(
+            marker in event_type
+            for marker in critical_markers
+        ):
+            effective_priority = max(
+                effective_priority,
+                4,
+            )
+        elif any(
+            marker in event_type
+            for marker in warning_markers
+        ):
+            effective_priority = max(
+                effective_priority,
+                2,
+            )
+
+        return {
+            "event_id": normalized.get("event_id"),
+            "event_type": event_type,
+            "base_priority": base_priority,
+            "effective_priority": effective_priority,
+            "priority_changed": (
+                effective_priority != base_priority
+            ),
+        }
+
     def correlate(self, event_a, event_b):
         """
         Determine deterministic relationships between two
