@@ -5,6 +5,9 @@ Phase 35.8
 """
 
 
+from proactive.slot_validation import slot_validator
+
+
 class SlotFiller:
     """Schema-driven multi-turn required-slot filling."""
 
@@ -45,6 +48,7 @@ class SlotFiller:
     }
 
     def __init__(self):
+        self.validator = slot_validator
         self.clear()
 
     def clear(self):
@@ -204,7 +208,26 @@ class SlotFiller:
         slot = missing[0]
 
         if self._is_fill_candidate(command):
-            value = str(command).strip()
+            raw_value = str(command).strip()
+
+            validation = self.validator.validate(
+                pending_intent,
+                slot,
+                raw_value,
+            )
+
+            if not validation["valid"]:
+                return {
+                    "intent": pending_intent,
+                    "parameters": merged,
+                    "filled": {},
+                    "filled_slot": None,
+                    "missing": missing,
+                    "continued": True,
+                    "validation": validation,
+                }
+
+            value = validation["value"]
             merged[slot] = value
 
             remaining = self.missing_slots(
@@ -229,6 +252,7 @@ class SlotFiller:
                 "filled_slot": slot,
                 "missing": remaining,
                 "continued": True,
+                "validation": validation,
             }
 
         return {

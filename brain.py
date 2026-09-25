@@ -884,6 +884,7 @@ class Brain:
         intent_name = slot_result["intent"]
         parameters = slot_result["parameters"]
         missing_slots = slot_result["missing"]
+        validation = slot_result.get("validation")
 
         # Keep the detected intent synchronized with the
         # slot-filled parameters before execution.
@@ -924,6 +925,25 @@ class Brain:
         )
 
         print("[COGNITIVE] Intent:", intent_name)
+        if (
+            validation
+            and not validation.get("valid")
+        ):
+            prompt = validation.get(
+                "prompt"
+            )
+
+            if prompt:
+                print(
+                    "[BRAIN] Slot validation:",
+                    validation.get("reason")
+                )
+
+                speaker.speak(
+                    prompt
+                )
+
+                return True
         if missing_slots:
             slot_name = missing_slots[0].replace(
                 "_",
