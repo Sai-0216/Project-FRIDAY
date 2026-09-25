@@ -67,6 +67,10 @@ class DialogueContext:
             "what is its",
             "what is the",
             "what next",
+            "what should i",
+            "what can i",
+            "what do i",
+            "which one",
             "then what",
             "why",
             "how",
@@ -106,4 +110,3 @@ class DialogueContext:
 
 
 dialogue_context = DialogueContext()
-

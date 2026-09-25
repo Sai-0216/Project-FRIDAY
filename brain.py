@@ -16,6 +16,7 @@ from response_manager import response_manager
 from gui import gui
 from modules.memory import remember_statement, memory
 from decision_recall import decision_recall
+from proactive.intent_continuity import intent_continuity
 from proactive.outcome_memory import proactive_outcome_memory
 
 
@@ -26,6 +27,7 @@ class Brain:
     # =========================================================
 
     def __init__(self):
+        self.intent_continuity = intent_continuity
         self.pending_confirmation = None
 
     # =========================================================
@@ -541,6 +543,8 @@ class Brain:
         # CONVERSATION CONTEXT
         # =====================================================
 
+        from proactive.dialogue_context import dialogue_context
+
         from conversation_context import conversation_context
 
         original_command = command
@@ -735,6 +739,33 @@ class Brain:
                 "Bypassing Intent Engine and Planner."
             )
 
+            continuity = self.intent_continuity.resolve(
+                command,
+                "knowledge",
+                {},
+                dialogue_context,
+            )
+
+            if continuity["continued"]:
+
+                print(
+                    "[COGNITIVE] "
+                    "Intent continuity:",
+                    continuity["previous_intent"],
+                    "→",
+                    continuity["intent"],
+                )
+
+            self.conversation_state.update_intent(
+                continuity["intent"],
+                continuity["parameters"],
+            )
+
+            self.intent_continuity.update(
+                continuity["intent"],
+                continuity["parameters"],
+                dialogue_context.get_topic(),
+            )
             response = self.chat(
                 command,
                 already_saved=True
@@ -799,6 +830,40 @@ class Brain:
         # DIRECT INTENT EXECUTION
         # =====================================================
 
+        parameters = intent.get("parameters", {})
+
+        continuity = self.intent_continuity.resolve(
+            command,
+            intent_name,
+            parameters,
+            dialogue_context,
+        )
+
+        intent_name = continuity["intent"]
+        parameters = continuity["parameters"]
+
+        if continuity["continued"]:
+
+            print(
+                "[COGNITIVE] "
+                "Intent continuity:",
+                continuity["previous_intent"],
+                "->",
+                intent_name,
+            )
+
+        self.conversation_state.update_intent(
+            intent_name,
+            parameters,
+        )
+
+        self.intent_continuity.update(
+            intent_name,
+            parameters,
+            dialogue_context.get_topic(),
+        )
+
+        print("[COGNITIVE] Intent:", intent_name)
         if intent_name != "unknown":
 
             # -------------------------------------------------
