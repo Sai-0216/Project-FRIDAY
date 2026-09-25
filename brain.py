@@ -17,6 +17,7 @@ from gui import gui
 from modules.memory import remember_statement, memory
 from decision_recall import decision_recall
 from proactive.intent_continuity import intent_continuity
+from proactive.context_fusion import ContextFusion
 from proactive.outcome_memory import proactive_outcome_memory
 
 
@@ -28,6 +29,8 @@ class Brain:
 
     def __init__(self):
         self.intent_continuity = intent_continuity
+        self.context_fusion = None
+        self.fused_context = {}
         self.pending_confirmation = None
 
     # =========================================================
@@ -543,9 +546,16 @@ class Brain:
         # CONVERSATION CONTEXT
         # =====================================================
 
+        from conversation_context import conversation_context
         from proactive.dialogue_context import dialogue_context
 
-        from conversation_context import conversation_context
+        self.context_fusion = ContextFusion(
+            conversation_state=self.conversation_state,
+            dialogue_context=dialogue_context,
+            intent_continuity=self.intent_continuity,
+            conversational_memory=self.conversational_memory,
+            conversation_context=conversation_context,
+        )
 
         original_command = command
 
@@ -766,6 +776,10 @@ class Brain:
                 continuity["parameters"],
                 dialogue_context.get_topic(),
             )
+
+            self.fused_context = (
+                self.context_fusion.build()
+            )
             response = self.chat(
                 command,
                 already_saved=True
@@ -861,6 +875,10 @@ class Brain:
             intent_name,
             parameters,
             dialogue_context.get_topic(),
+        )
+
+        self.fused_context = (
+            self.context_fusion.build()
         )
 
         print("[COGNITIVE] Intent:", intent_name)
