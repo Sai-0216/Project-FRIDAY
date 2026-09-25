@@ -17,6 +17,7 @@ from gui import gui
 from modules.memory import remember_statement, memory
 from decision_recall import decision_recall
 from proactive.intent_continuity import intent_continuity
+from proactive.slot_filling import slot_filler
 from proactive.context_fusion import ContextFusion
 from proactive.outcome_memory import proactive_outcome_memory
 
@@ -29,6 +30,7 @@ class Brain:
 
     def __init__(self):
         self.intent_continuity = intent_continuity
+        self.slot_filler = slot_filler
         self.context_fusion = None
         self.fused_context = {}
         self.pending_confirmation = None
@@ -858,6 +860,42 @@ class Brain:
         intent_name = continuity["intent"]
         parameters = continuity["parameters"]
 
+        # =====================================================
+        # MULTI-TURN SLOT FILLING
+        # =====================================================
+
+        slot_result = self.slot_filler.resolve(
+            command,
+            intent_name,
+            parameters,
+            self.intent_continuity.previous_intent,
+            self.intent_continuity.previous_parameters,
+        )
+
+        if slot_result.get("cancelled"):
+            print(
+                "[BRAIN] Slot filling cancelled."
+            )
+            speaker.speak(
+                "Okay, cancelled."
+            )
+            return True
+
+        intent_name = slot_result["intent"]
+        parameters = slot_result["parameters"]
+        missing_slots = slot_result["missing"]
+
+        # Keep the detected intent synchronized with the
+        # slot-filled parameters before execution.
+        intent["intent"] = intent_name
+        intent["parameters"] = parameters
+
+        if missing_slots:
+            self.slot_filler.arm(
+                intent_name,
+                parameters,
+            )
+
         if continuity["continued"]:
 
             print(
@@ -886,6 +924,23 @@ class Brain:
         )
 
         print("[COGNITIVE] Intent:", intent_name)
+        if missing_slots:
+            slot_name = missing_slots[0].replace(
+                "_",
+                " "
+            )
+
+            print(
+                "[BRAIN] Awaiting required slot:",
+                slot_name
+            )
+
+            speaker.speak(
+                f"I need the {slot_name}."
+            )
+
+            return True
+
         if intent_name != "unknown":
 
             # -------------------------------------------------
