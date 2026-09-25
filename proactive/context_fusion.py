@@ -1,7 +1,7 @@
 ﻿"""
 Project FRIDAY
 Context Fusion
-Phase 35.6
+Phase 35.7
 """
 
 
@@ -22,7 +22,64 @@ class ContextFusion:
         self.conversational_memory = conversational_memory
         self.conversation_context = conversation_context
 
-    def build(self):
+    def _reference_snapshot(self, command=None):
+        if not self.conversation_context or not command:
+            return {
+                "detected": False,
+                "type": None,
+                "target": None,
+            }
+
+        try:
+            detected = (
+                self.conversation_context.has_reference(
+                    command
+                )
+                or self.conversation_context.is_previous_reference(
+                    command
+                )
+            )
+
+            if not detected:
+                return {
+                    "detected": False,
+                    "type": None,
+                    "target": None,
+                }
+
+            reference_type = (
+                "previous_topic"
+                if self.conversation_context.is_previous_reference(
+                    command
+                )
+                else "current_topic"
+            )
+
+            target = (
+                self.conversation_context.get_reference_target(
+                    command
+                )
+            )
+
+            return {
+                "detected": True,
+                "type": reference_type,
+                "target": target,
+            }
+
+        except Exception as error:
+            print(
+                "[CONTEXT] Reference fusion failed:",
+                repr(error),
+            )
+
+            return {
+                "detected": False,
+                "type": None,
+                "target": None,
+            }
+
+    def build(self, command=None):
         state = (
             self.conversation_state.snapshot()
             if self.conversation_state
@@ -113,6 +170,9 @@ class ContextFusion:
                 "current_topic": topic,
                 "previous_topic": previous_topic,
             },
+            "reference": self._reference_snapshot(
+                command
+            ),
             "recent_turns": [
                 dict(turn)
                 for turn in memory

@@ -778,7 +778,9 @@ class Brain:
             )
 
             self.fused_context = (
-                self.context_fusion.build()
+                self.context_fusion.build(
+                    command=original_command
+                )
             )
             response = self.chat(
                 command,
@@ -878,7 +880,9 @@ class Brain:
         )
 
         self.fused_context = (
-            self.context_fusion.build()
+            self.context_fusion.build(
+                command=original_command
+            )
         )
 
         print("[COGNITIVE] Intent:", intent_name)
