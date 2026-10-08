@@ -113,6 +113,25 @@ class SlotFiller:
 
         return list(missing)
 
+    def restore_pending(
+        self,
+        intent,
+        parameters=None,
+        missing_slots=None,
+    ):
+        parameters = dict(parameters or {})
+        missing = list(missing_slots or [])
+
+        if not intent or not missing:
+            self.clear()
+            return []
+
+        self.pending_intent = intent
+        self.pending_parameters = parameters
+        self.pending_slots = missing
+
+        return list(missing)
+
     def has_pending(self):
         return bool(
             self.pending_intent

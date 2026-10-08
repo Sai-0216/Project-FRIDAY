@@ -864,6 +864,21 @@ class Brain:
         # MULTI-TURN SLOT FILLING
         # =====================================================
 
+        pending_state = (
+            self.conversation_state.snapshot()
+            .get("pending_slots")
+            or {}
+        )
+
+        if (
+            pending_state.get("active")
+            and not self.slot_filler.has_pending()
+        ):
+            self.slot_filler.restore_pending(
+                pending_state.get("intent"),
+                pending_state.get("parameters"),
+                pending_state.get("missing"),
+            )
         slot_result = self.slot_filler.resolve(
             command,
             intent_name,
