@@ -190,6 +190,7 @@ class SlotFiller:
             and current_intent != "unknown"
             and current_intent != pending_intent
         ):
+            previous_intent = pending_intent
             self.clear()
 
             return {
@@ -202,6 +203,8 @@ class SlotFiller:
                     current_parameters,
                 ),
                 "continued": False,
+                "transitioned": True,
+                "previous_intent": previous_intent,
             }
 
         merged = dict(pending_parameters)

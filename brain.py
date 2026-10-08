@@ -887,6 +887,14 @@ class Brain:
             self.intent_continuity.previous_parameters,
         )
 
+        if slot_result.get("transitioned"):
+            self.conversation_state.clear_pending_slots()
+            print(
+                "[BRAIN] Slot filling transitioned:",
+                slot_result.get("previous_intent"),
+                "->",
+                slot_result.get("intent"),
+            )
         if slot_result.get("cancelled"):
             self.conversation_state.clear_pending_slots()
             print(
