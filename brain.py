@@ -873,6 +873,7 @@ class Brain:
         )
 
         if slot_result.get("cancelled"):
+            self.conversation_state.clear_pending_slots()
             print(
                 "[BRAIN] Slot filling cancelled."
             )
@@ -896,6 +897,13 @@ class Brain:
                 intent_name,
                 parameters,
             )
+            self.conversation_state.update_pending_slots(
+                intent_name,
+                parameters,
+                missing_slots,
+            )
+        else:
+            self.conversation_state.clear_pending_slots()
 
         if continuity["continued"]:
 

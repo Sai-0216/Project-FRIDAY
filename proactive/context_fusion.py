@@ -161,6 +161,34 @@ class ContextFusion:
                     ) or {}
                 ),
             },
+            "slots": {
+                "pending": bool(
+                    (
+                        state.get("pending_slots")
+                        or {}
+                    ).get("active")
+                ),
+                "intent": (
+                    (
+                        state.get("pending_slots")
+                        or {}
+                    ).get("intent")
+                ),
+                "parameters": dict(
+                    (
+                        state.get("pending_slots")
+                        or {}
+                    ).get("parameters")
+                    or {}
+                ),
+                "missing": list(
+                    (
+                        state.get("pending_slots")
+                        or {}
+                    ).get("missing")
+                    or []
+                ),
+            },
             "command": {
                 "resolved": state.get(
                     "last_resolved_command"

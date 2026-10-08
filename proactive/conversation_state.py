@@ -24,6 +24,9 @@ class ConversationState:
         self.last_intent = None
         self.last_parameters = {}
         self.last_resolved_command = None
+        self.pending_slot_intent = None
+        self.pending_slot_parameters = {}
+        self.pending_slots = []
         self.updated_at = None
         self.error = None
 
@@ -57,6 +60,27 @@ class ConversationState:
         self.last_resolved_command = command
         self._touch()
 
+    def update_pending_slots(
+        self,
+        intent,
+        parameters=None,
+        missing_slots=None,
+    ):
+        self.pending_slot_intent = intent
+        self.pending_slot_parameters = dict(
+            parameters or {}
+        )
+        self.pending_slots = list(
+            missing_slots or []
+        )
+        self._touch()
+
+    def clear_pending_slots(self):
+        self.pending_slot_intent = None
+        self.pending_slot_parameters = {}
+        self.pending_slots = []
+        self._touch()
+
     def complete_turn(self, assistant_message=None):
         self.status = "completed"
         if assistant_message is not None:
@@ -80,6 +104,17 @@ class ConversationState:
             "last_intent": self.last_intent,
             "last_parameters": dict(self.last_parameters),
             "last_resolved_command": self.last_resolved_command,
+            "pending_slots": {
+                "active": bool(
+                    self.pending_slot_intent
+                    and self.pending_slots
+                ),
+                "intent": self.pending_slot_intent,
+                "parameters": dict(
+                    self.pending_slot_parameters
+                ),
+                "missing": list(self.pending_slots),
+            },
             "updated_at": self.updated_at,
             "error": self.error,
         }
