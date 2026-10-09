@@ -161,6 +161,8 @@ class SlotFiller:
                     current_parameters,
                 ),
                 "continued": False,
+                "pending": False,
+                "completed": False,
             }
 
         if (
@@ -178,6 +180,8 @@ class SlotFiller:
                 "missing": [],
                 "continued": False,
                 "cancelled": True,
+                "pending": False,
+                "completed": False,
             }
 
         pending_intent = self.pending_intent
@@ -205,6 +209,12 @@ class SlotFiller:
                 "continued": False,
                 "transitioned": True,
                 "previous_intent": previous_intent,
+                "pending": bool(
+                    self.missing_slots(current_intent, current_parameters)
+                ),
+                "completed": not bool(
+                    self.missing_slots(current_intent, current_parameters)
+                ),
             }
 
         merged = dict(pending_parameters)
@@ -225,6 +235,8 @@ class SlotFiller:
                 "filled_slot": None,
                 "missing": [],
                 "continued": True,
+                "pending": False,
+                "completed": True,
             }
 
         slot = missing[0]
@@ -246,6 +258,8 @@ class SlotFiller:
                     "filled_slot": None,
                     "missing": missing,
                     "continued": True,
+                    "pending": True,
+                    "completed": False,
                     "validation": validation,
                 }
 
@@ -274,6 +288,8 @@ class SlotFiller:
                 "filled_slot": slot,
                 "missing": remaining,
                 "continued": True,
+                "pending": bool(remaining),
+                "completed": not bool(remaining),
                 "validation": validation,
             }
 
@@ -284,6 +300,8 @@ class SlotFiller:
             "filled_slot": None,
             "missing": missing,
             "continued": True,
+            "pending": True,
+            "completed": False,
         }
 
     def snapshot(self):

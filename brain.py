@@ -915,7 +915,9 @@ class Brain:
         intent["intent"] = intent_name
         intent["parameters"] = parameters
 
-        if missing_slots:
+        pending_lifecycle = slot_result.get("pending", bool(missing_slots))
+
+        if pending_lifecycle and missing_slots:
             self.slot_filler.arm(
                 intent_name,
                 parameters,
