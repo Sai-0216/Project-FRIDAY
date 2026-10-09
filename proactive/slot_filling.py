@@ -161,7 +161,9 @@ class SlotFiller:
                     current_parameters,
                 ),
                 "continued": False,
-                "pending": False,
+                "pending": bool(
+                    self.missing_slots(current_intent, current_parameters)
+                ),
                 "completed": False,
             }
 
