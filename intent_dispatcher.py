@@ -36,10 +36,14 @@ class IntentDispatcher:
 
     def execute(self, intent):
 
+        self.last_execution_error = None
+
         try:
             return self._execute(intent)
 
         except Exception as e:
+
+            self.last_execution_error = repr(e)
 
             print(
                 "[Dispatcher] Intent execution error:",

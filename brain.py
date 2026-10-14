@@ -16,6 +16,10 @@ from response_manager import response_manager
 from gui import gui
 from modules.memory import remember_statement, memory
 from decision_recall import decision_recall
+from proactive.outcome_memory import proactive_outcome_memory
+from proactive.state_manager import state_manager
+from proactive.conversation_state import conversation_state
+from proactive.conversational_memory import conversational_memory
 from proactive.intent_continuity import intent_continuity
 from proactive.slot_filling import slot_filler
 from proactive.context_fusion import ContextFusion
@@ -29,6 +33,10 @@ class Brain:
     # =========================================================
 
     def __init__(self):
+        self.pending_confirmation = None
+        self.state_manager = state_manager
+        self.conversation_state = conversation_state
+        self.conversational_memory = conversational_memory
         self.intent_continuity = intent_continuity
         self.slot_filler = slot_filler
         self.context_fusion = None
@@ -48,12 +56,25 @@ class Brain:
             f"Brain received: '{command}'"
         )
 
+        self.state_manager.begin(command)
+        print("[COGNITIVE] State: UNDERSTANDING")
+
         # =====================================================
         # GET PREVIOUS USER COMMAND
         # =====================================================
 
         previous_command = (
             conversation.get_last_user_message()
+        )
+
+        self.conversation_state.begin_turn(
+            command,
+            previous_user_message=previous_command,
+        )
+
+        print(
+            "[CONVERSATION] Turn:",
+            self.conversation_state.turn_count,
         )
 
         # =====================================================
@@ -305,9 +326,16 @@ class Brain:
                     # EXISTING DISPATCHER
                     # -------------------------------------------------
 
+                    self.state_manager.transition("EXECUTING")
+                    print("[COGNITIVE] State: EXECUTING")
                     response = dispatcher.execute(
                         dispatcher_intent
                     )
+                    self.state_manager.add_execution_result({
+                        "intent": dispatcher_intent,
+                        "response": response,
+                        "error": getattr(dispatcher, "last_execution_error", None),
+                    })
 
                     print(
                         "[BRAIN] Proactive dispatcher "
@@ -585,6 +613,16 @@ class Brain:
                 .lower()
                 .strip()
             )
+
+        self.state_manager.update(resolved_command=command)
+
+        self.conversation_state.update_resolved_command(
+            command
+        )
+
+        print("[COGNITIVE] Resolved command:", repr(command))
+        self.state_manager.transition("PLANNING")
+        print("[COGNITIVE] State: PLANNING")
 
         # =====================================================
         # FAST LOCAL COMMAND PATH
@@ -940,6 +978,11 @@ class Brain:
                 intent_name,
             )
 
+        self.state_manager.update(
+            intent=intent_name,
+            parameters=parameters,
+        )
+
         self.conversation_state.update_intent(
             intent_name,
             parameters,
@@ -1074,9 +1117,17 @@ class Brain:
             # EXECUTE INTENT
             # -------------------------------------------------
 
+            self.state_manager.transition("EXECUTING")
+            print("[COGNITIVE] State: EXECUTING")
+
             response = dispatcher.execute(
                 intent
             )
+            self.state_manager.add_execution_result({
+                "intent": intent,
+                "response": response,
+                "error": getattr(dispatcher, "last_execution_error", None),
+            })
 
             print(
                 "Dispatcher Response:",
@@ -1100,6 +1151,9 @@ class Brain:
                     conversation.add_assistant(
                         formatted_response
                     )
+
+            if self.state_manager.current().lifecycle != "EVALUATING":
+                self.state_manager.complete()
 
             return True
 
@@ -1214,8 +1268,12 @@ class Brain:
             "Creating execution plan..."
         )
 
+        self.state_manager.transition("PLANNING")
         plan = planner.plan(
             command
+        )
+        self.state_manager.update(
+            plan=plan.get("tasks", []) if isinstance(plan, dict) else []
         )
 
         if (
@@ -1457,6 +1515,10 @@ class Brain:
             f"Planned {len(tasks)} task(s)."
         )
 
+        self.state_manager.update(plan=tasks)
+        self.state_manager.transition("EXECUTING")
+        print("[COGNITIVE] State: EXECUTING")
+
         try:
 
             for task in tasks:
@@ -1476,6 +1538,12 @@ class Brain:
                     "[BRAIN] Task response:",
                     repr(response)
                 )
+
+                self.state_manager.add_execution_result({
+                    "task": task,
+                    "response": response,
+                    "error": getattr(dispatcher, "last_execution_error", None),
+                })
 
                 if response:
 
@@ -1505,6 +1573,9 @@ class Brain:
                 repr(e)
             )
 
+            self.state_manager.fail(repr(e))
+            print("[COGNITIVE] State: IDLE")
+
             error_response = (
                 response_manager.error(
                     "I couldn't complete that."
@@ -1522,6 +1593,19 @@ class Brain:
     # =========================================================
     # AI CONVERSATION
     # =========================================================
+
+    def _remember_conversational_turn(
+        self,
+        user_message,
+        assistant_message,
+    ):
+        self.conversational_memory.remember_turn(
+            user_message=user_message,
+            assistant_message=assistant_message,
+            topic=self.conversation_state.active_topic,
+            intent=self.conversation_state.last_intent,
+            resolved_command=self.conversation_state.last_resolved_command,
+        )
 
     def chat(
         self,
@@ -1600,6 +1684,11 @@ class Brain:
                         response
                     )
 
+                    self._remember_conversational_turn(
+                        command,
+                        response,
+                    )
+
                     print(
                         "[BRAIN] "
                         "Fast personal memory lookup."
@@ -1626,6 +1715,11 @@ class Brain:
 
                 conversation.add_assistant(
                     response
+                )
+
+                self._remember_conversational_turn(
+                    command,
+                    response,
                 )
 
             return response
@@ -1656,10 +1750,28 @@ def _safe_process(
 
     try:
 
-        return _original_process(
+        result = _original_process(
             self,
             command
         )
+
+        state = self.state_manager.current()
+
+        if state.lifecycle != "IDLE" and state.outcome != "failed":
+            self.state_manager.complete()
+            state = self.state_manager.current()
+
+        if state.outcome == "failed":
+            self.conversation_state.fail(
+                getattr(state, "error", None) or "Execution failed"
+            )
+        else:
+            self.conversation_state.complete_turn()
+
+        if state.lifecycle == "IDLE":
+            print("[COGNITIVE] State: IDLE")
+
+        return result
 
     except Exception as e:
 
@@ -1667,6 +1779,30 @@ def _safe_process(
             "[BRAIN] Processing error:",
             repr(e)
         )
+
+        # Recover cognitive state without blocking conversation recovery.
+        try:
+            state = self.state_manager.current()
+
+            if state.lifecycle == "IDLE":
+                if not state.outcome:
+                    self.state_manager.begin(command)
+                    self.state_manager.fail(repr(e))
+            elif state.outcome != "failed":
+                self.state_manager.fail(repr(e))
+
+            print("[COGNITIVE] State: IDLE")
+        except Exception as state_error:
+            print("[COGNITIVE] State recovery error:", repr(state_error))
+
+        # This must remain independent of cognitive-state recovery.
+        try:
+            self.conversation_state.fail(repr(e))
+        except Exception as conversation_error:
+            print(
+                "[CONVERSATION] Recovery error:",
+                repr(conversation_error)
+            )
 
         return True
 

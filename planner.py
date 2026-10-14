@@ -3,6 +3,7 @@ Project FRIDAY
 AI Planner
 """
 
+from proactive.episodic_memory import episodic_memory
 import json
 import re
 from urllib.parse import quote_plus
@@ -74,6 +75,245 @@ class Planner:
     # MAIN PLANNER
     # ========================================
 
+    def _cognitive_pattern(self, command):
+        normalized = " ".join(str(command).strip().lower().split())
+        if not normalized:
+            return None
+
+        try:
+            records = episodic_memory.recent(50)
+        except Exception as e:
+            print("[PLANNER] Cognitive pattern analysis unavailable:", repr(e))
+            return None
+
+        matches = []
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            event = " ".join(str(record.get("event", "")).strip().lower().split())
+            if event == normalized:
+                matches.append(record)
+
+        if len(matches) < 2:
+            return None
+
+        completed = sum(1 for record in matches if record.get("outcome") == "completed")
+        partial = sum(1 for record in matches if record.get("outcome") == "partial")
+        failed = sum(1 for record in matches if record.get("outcome") == "failed")
+        total = len(matches)
+        success_rate = round(completed / total, 2) if total else 0.0
+        failure_rate = round(failed / total, 2) if total else 0.0
+
+        recent_matches = matches[-3:]
+        recent_completed = sum(1 for record in recent_matches if record.get("outcome") == "completed")
+        recent_failed = sum(1 for record in recent_matches if record.get("outcome") == "failed")
+        recent_total = len(recent_matches)
+        recent_success_rate = round(recent_completed / recent_total, 2) if recent_total else 0.0
+        recent_failure_rate = round(recent_failed / recent_total, 2) if recent_total else 0.0
+
+        evidence_strength = round(min(1.0, total / 5.0), 2)
+        adaptive_score = round(
+            (success_rate * 0.4) + (recent_success_rate * 0.6),
+            2
+        )
+        adaptive_failure_score = round(
+            (failure_rate * 0.4) + (recent_failure_rate * 0.6),
+            2
+        )
+
+        if adaptive_score >= 0.6 and adaptive_score > adaptive_failure_score:
+            recommendation = "prefer_successful_strategy"
+        elif adaptive_failure_score >= 0.6 and adaptive_failure_score > adaptive_score:
+            recommendation = "avoid_failed_strategy"
+        else:
+            recommendation = "use_with_caution"
+
+        confidence = round(
+            max(adaptive_score, adaptive_failure_score) * evidence_strength,
+            2
+        )
+
+        strategy_counts = {}
+        for record in matches:
+            context = record.get("context", {})
+            if not isinstance(context, dict):
+                continue
+            intent = context.get("intent")
+            if not intent:
+                continue
+            strategy_key = str(intent)
+            strategy_counts[strategy_key] = strategy_counts.get(strategy_key, 0) + 1
+
+        strategy_reliability = {}
+        for strategy in strategy_counts:
+            strategy_records = [r for r in matches if isinstance(r.get("context", {}), dict) and str(r.get("context", {}).get("intent", "")) == strategy]
+            strategy_total = len(strategy_records)
+            strategy_completed = sum(1 for r in strategy_records if r.get("outcome") == "completed")
+            strategy_failed = sum(1 for r in strategy_records if r.get("outcome") == "failed")
+            strategy_reliability[strategy] = {"occurrences": strategy_total, "completed": strategy_completed, "failed": strategy_failed, "success_rate": round(strategy_completed / strategy_total, 2) if strategy_total else 0.0, "failure_rate": round(strategy_failed / strategy_total, 2) if strategy_total else 0.0}
+
+        preferred_strategy = None
+        if strategy_reliability:
+            eligible_strategies = {
+                strategy: stats
+                for strategy, stats in strategy_reliability.items()
+                if stats["failure_rate"] < 0.5
+            }
+
+            if eligible_strategies:
+                preferred_strategy = max(
+                    eligible_strategies,
+                    key=lambda strategy: (
+                        eligible_strategies[strategy]["success_rate"],
+                        -eligible_strategies[strategy]["failure_rate"],
+                        eligible_strategies[strategy]["occurrences"],
+                    ),
+                )
+
+        pattern = {
+            "command": normalized,
+            "occurrences": total,
+            "completed": completed,
+            "partial": partial,
+            "failed": failed,
+            "success_rate": success_rate,
+            "failure_rate": failure_rate,
+            "recent_success_rate": recent_success_rate,
+            "recent_failure_rate": recent_failure_rate,
+            "evidence_strength": evidence_strength,
+            "adaptive_score": adaptive_score,
+            "adaptive_failure_score": adaptive_failure_score,
+            "confidence": confidence,
+            "recommendation": recommendation,
+            "strategy_counts": strategy_counts,
+            "strategy_reliability": strategy_reliability,
+            "conflict_resolution": max(eligible_strategies, key=lambda strategy: (eligible_strategies[strategy]["success_rate"], -eligible_strategies[strategy]["failure_rate"], eligible_strategies[strategy]["occurrences"])) if len(strategy_reliability) > 1 and eligible_strategies else None,
+            "preferred_strategy": preferred_strategy,
+            "preferred_strategy_reliability": strategy_reliability.get(preferred_strategy, {}).get("success_rate", 0.0) if preferred_strategy else 0.0
+        }
+
+        print("[PLANNER] Cognitive pattern:", pattern)
+        return pattern
+
+    def _cognitive_feedback(self, command):
+        try:
+            experiences = episodic_memory.search(command, limit=5)
+        except Exception as e:
+            print("[PLANNER] Cognitive feedback unavailable:", repr(e))
+            return ""
+
+        if not experiences:
+            return ""
+
+        feedback = []
+        for experience in experiences:
+            if not isinstance(experience, dict):
+                continue
+
+            outcome = experience.get("outcome")
+
+            if outcome == "completed":
+                quality = "successful"
+            elif outcome == "partial":
+                quality = "partially_successful"
+            elif outcome == "failed":
+                quality = "failed_avoid_repeating"
+            else:
+                quality = "unknown"
+
+            feedback.append({
+                "event": experience.get("event"),
+                "context": experience.get("context", {}),
+                "outcome": outcome,
+                "quality": quality
+            })
+
+        pattern = self._cognitive_pattern(command)
+
+        if not feedback and pattern is None:
+            return ""
+
+        feedback.sort(
+            key=lambda item: {
+                "successful": 0,
+                "partially_successful": 1,
+                "failed_avoid_repeating": 2,
+                "unknown": 3
+            }.get(item.get("quality"), 3)
+        )
+
+        payload = {
+            "experiences": feedback,
+            "pattern": pattern,
+            "strategy_guidance": None,
+            "failure_avoidance": None,
+
+
+        }
+
+        if pattern and pattern.get("preferred_strategy"):
+            payload["strategy_guidance"] = {
+                "preferred_strategy": pattern.get("preferred_strategy"),
+                "confidence": pattern.get("confidence", 0.0),
+                "reliability": pattern.get("preferred_strategy_reliability", 0.0),
+                "decision_quality": "strong" if pattern.get("confidence", 0.0) >= 0.7 and pattern.get("preferred_strategy_reliability", 0.0) >= 0.8 else "moderate" if pattern.get("confidence", 0.0) >= 0.4 else "weak",
+                "calibration": "high" if pattern.get("confidence", 0.0) >= 0.7 else "medium" if pattern.get("confidence", 0.0) >= 0.4 else "low",
+                "calibration_guidance": "trust_strategy" if pattern.get("confidence", 0.0) >= 0.7 else "use_normal_judgment" if pattern.get("confidence", 0.0) >= 0.4 else "be_cautious",
+                "conflict_detected": len(pattern.get("strategy_counts", {})) > 1,
+                "conflict_resolution": pattern.get("conflict_resolution"),
+                "conflict_strategy_count": len(pattern.get("strategy_counts", {})),
+                "decision_gate": "allow_strong_preference" if pattern.get("confidence", 0.0) >= 0.7 and pattern.get("preferred_strategy_reliability", 0.0) >= 0.8 else "allow_normal_preference" if pattern.get("confidence", 0.0) >= 0.4 else "limit_memory_influence",
+                "cognitive_priority": "failure_avoidance" if pattern.get("recommendation") == "avoid_failed_strategy" else "reliable_strategy" if pattern.get("preferred_strategy_reliability", 0.0) >= 0.8 and pattern.get("confidence", 0.0) >= 0.7 else "recent_evidence" if pattern.get("recent_success_rate", 0.0) > pattern.get("success_rate", 0.0) else "weak_memory",
+                "cognitive_decision": "avoid_strategy" if pattern.get("recommendation") == "avoid_failed_strategy" else "prefer_strategy" if pattern.get("preferred_strategy_reliability", 0.0) >= 0.8 and pattern.get("confidence", 0.0) >= 0.7 else "consider_strategy" if pattern.get("recommendation") == "prefer_successful_strategy" else "use_cautiously",
+                "recommendation": pattern.get("recommendation")
+            }
+
+        if pattern:
+            reliability = pattern.get("strategy_reliability", {})
+            failing_strategies = {
+                name: stats
+                for name, stats in reliability.items()
+                if stats.get("failure_rate", 0.0) >= 0.5
+            }
+
+            if failing_strategies:
+                strategy, strategy_stats = max(
+                    failing_strategies.items(),
+                    key=lambda item: (
+                        item[1].get("failure_rate", 0.0),
+                        -item[1].get("success_rate", 0.0),
+                        item[1].get("occurrences", 0),
+                    ),
+                )
+                payload["failure_avoidance"] = {
+                    "avoid": True,
+                    "strategy": strategy,
+                    "confidence": pattern.get("confidence", 0.0),
+                    "failure_rate": strategy_stats.get("failure_rate", 0.0),
+                }
+
+        print("[PLANNER] Cognitive feedback:", payload)
+        return "\nRELEVANT PAST EXECUTION FEEDBACK:\n" + json.dumps(payload, ensure_ascii=False)
+
+    def _validated_plan(self, command, plan):
+        """Apply command relevance validation to every locally generated plan."""
+        if not isinstance(plan, dict):
+            return plan
+
+        tasks = plan.get("tasks")
+        if not isinstance(tasks, list):
+            return plan
+
+        safe_tasks = [
+            task for task in tasks
+            if isinstance(task, dict)
+        ]
+
+        return {
+            **plan,
+            "tasks": self._validate_against_command(command, safe_tasks),
+        }
+
     def plan(self, command):
 
         command = str(command).strip()
@@ -96,7 +336,7 @@ class Planner:
                 multi_plan
             )
 
-            return multi_plan
+            return self._validated_plan(command, multi_plan)
 
         # ========================================
         # SIMPLE LOCAL COMMANDS
@@ -113,7 +353,7 @@ class Planner:
                 local_plan
             )
 
-            return local_plan
+            return self._validated_plan(command, local_plan)
 
         # ========================================
         # DIRECT BROWSER SEARCH
@@ -130,11 +370,13 @@ class Planner:
                 browser_plan
             )
 
-            return browser_plan
+            return self._validated_plan(command, browser_plan)
 
         # ========================================
         # AI FALLBACK
         # ========================================
+
+        cognitive_feedback = self._cognitive_feedback(command)
 
         prompt = f"""
 You are FRIDAY's execution planner.
@@ -158,21 +400,26 @@ Required format:
 Rules:
 
 1. Use ONLY the current request.
-2. NEVER reuse information from previous requests.
-3. NEVER invent applications.
-4. NEVER invent actions.
-5. Preserve the order of actions.
-6. Use "parameters", never "data".
-7. For open_app use:
+2. Past execution feedback may be used only as guidance; never copy a previous request or invent details not present in the current request.
+3. When feedback is marked successful, prefer the demonstrated approach when it matches the current request.
+4. When feedback is marked partially_successful, use it cautiously and improve the approach when possible.
+5. When feedback is marked failed_avoid_repeating, avoid repeating the failed approach unless the current request clearly requires it.
+6. Use pattern confidence as evidence strength: low-confidence patterns are weak guidance, while high-confidence patterns should have greater influence on planning.
+7. When failure avoidance is provided, avoid the specified strategy unless the current request clearly requires a different or corrective approach.
+8. NEVER invent applications.
+9. NEVER invent actions.
+10. Preserve the order of actions.
+11. Use "parameters", never "data".
+12. For open_app use:
    {{"app": "spotify"}}
-8. For google_search use:
+13. For google_search use:
    {{"query": "python tutorials"}}
-9. For open_browser use:
+14. For open_browser use:
    {{"browser": "chrome", "url": "..."}}
-10. Return {{"tasks":[]}} if no executable action exists.
-11. Return valid JSON only.
-12. Do not return markdown.
-13. Do not return explanations.
+15. Return {{"tasks":[]}} if no executable action exists.
+16. Return valid JSON only.
+17. Do not return markdown.
+18. Do not return explanations.
 
 Supported intents:
 
@@ -220,6 +467,8 @@ delete_workflow
 CURRENT USER REQUEST:
 
 {command}
+
+{cognitive_feedback}
 """
 
         try:
