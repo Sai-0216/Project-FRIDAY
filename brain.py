@@ -270,39 +270,6 @@ class Brain:
                         parameters = {}
                         
                         
-                    # -------------------------------------------------
-                    # RECORD PROACTIVE OUTCOME
-                    # -------------------------------------------------
-
-                    proactive_outcome_memory.record(
-                        event_type=pending.get(
-                            "event_type",
-                            "UNKNOWN"
-                        ),
-                        action=pending.get(
-                            "action",
-                            "CONFIRM"
-                        ),
-                        attention_level=(
-                            pending.get(
-                                "context",
-                                {}
-                            )
-                            .get(
-                                "attention",
-                                {}
-                            )
-                            .get(
-                                "level",
-                                "UNKNOWN"
-                            )
-                        ),
-                        outcome="confirmed",
-                        intent=intent_name,
-                        reason="User accepted proactive confirmation."
-                    )
-
-                    # -------------------------------------------------
                     # BUILD NORMAL DISPATCHER INTENT
                     # -------------------------------------------------
 
@@ -385,45 +352,6 @@ class Brain:
                     
                 pending = self.pending_confirmation
 
-                if (
-                    isinstance(
-                        pending,
-                        dict
-                    )
-                    and pending.get(
-                        "action"
-                    ) == "CONFIRM"
-                ):
-                    proactive_outcome_memory.record(
-                        event_type=pending.get(
-                            "event_type",
-                            "UNKNOWN"
-                        ),
-                        action=pending.get(
-                            "action",
-                            "CONFIRM"
-                        ),
-                        attention_level=(
-                            pending.get(
-                                "context",
-                                {}
-                            )
-                            .get(
-                                "attention",
-                                {}
-                            )
-                            .get(
-                                "level",
-                                "UNKNOWN"
-                            )
-                        ),
-                        outcome="rejected",
-                        intent=pending.get(
-                            "intent"
-                        ),
-                        reason="User rejected proactive confirmation."
-                    )
-                self.pending_confirmation
                 
 
                 # -------------------------------------------------
