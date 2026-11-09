@@ -997,6 +997,7 @@ class IntentDispatcher:
                 lowered_text = text.lower()
                 if lowered_text.startswith(preference_prefixes):
                     incoming={"timestamp":__import__("datetime").datetime.now().isoformat(),"preference":text,"category":"explicit_preference","confidence":"HIGH"}; existing=next((r for r in reversed(preference_memory.recent(500)) if r.get("category")=="explicit_preference"),None); resolution=MemoryConflict.resolve(existing,incoming) if existing and MemoryConflict.detect_preference_conflict(existing,incoming) else "incoming"; if_existing_safe=MemoryConflict.is_safe_resolution(existing,incoming,resolution) if existing and MemoryConflict.detect_preference_conflict(existing,incoming) else True; preference_memory.replace(existing.get("preference"), text, category="explicit_preference", confidence="HIGH") if existing and if_existing_safe and resolution=="incoming" else preference_memory.record(text, category="explicit_preference", confidence="HIGH") if not existing else None
+                    return f"I'll remember that: {text}."
 
                 if " is " in text:
 
