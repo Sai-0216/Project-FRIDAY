@@ -7,7 +7,8 @@ import re
 
 from commands import router
 from planner import planner
-from intent_dispatcher import dispatcher
+from intent_dispatcher import dispatcher, approval_manager
+from security.authorization import authorize_intent, CONFIRMATION_INTENTS
 from speech import speaker
 from intent import intent_engine
 from ai import ai
@@ -23,7 +24,6 @@ from proactive.conversational_memory import conversational_memory
 from proactive.intent_continuity import intent_continuity
 from proactive.slot_filling import slot_filler
 from proactive.context_fusion import ContextFusion
-from proactive.outcome_memory import proactive_outcome_memory
 
 
 class Brain:
@@ -41,7 +41,6 @@ class Brain:
         self.slot_filler = slot_filler
         self.context_fusion = None
         self.fused_context = {}
-        self.pending_confirmation = None
 
     # =========================================================
     # MAIN PROCESSOR
@@ -49,8 +48,23 @@ class Brain:
 
     def process(
         self,
-        command: str
+        command: str,
+        source: str = "unknown",
     ) -> bool:
+
+        if not isinstance(source, str) or source not in {
+            "local_voice", "remote", "unknown"
+        }:
+            source = "unknown"
+
+        if getattr(self, "pending_confirmation", None) and source != "local_voice":
+            print(
+                "[BRAIN] Blocked non-local command while "
+                "confirmation is pending:",
+                source,
+            )
+            return True
+
 
         print(
             f"Brain received: '{command}'"
@@ -293,10 +307,53 @@ class Brain:
                     # EXISTING DISPATCHER
                     # -------------------------------------------------
 
+                    approval_token = None
+                    proactive_authorization = authorize_intent(
+                        dispatcher_intent
+                    )
+
+                    if proactive_authorization["status"] == "CONFIRM":
+                        if dispatcher_intent.get("intent") == "run_workflow":
+                            workflow_approval_payload = dispatcher.approval_actions(
+                                dispatcher_intent
+                            )
+                            if not workflow_approval_payload:
+                                response = (
+                                    "I cannot run that workflow because its action list "
+                                    "is empty or contains an invalid action, Sir."
+                                )
+                                speaker.speak(response)
+                                conversation.add_assistant(response)
+                                return True
+
+                            workflow_actions = workflow_approval_payload[1]["workflow_actions"]
+                            action_lines = "\n".join(
+                                f"{index}. {action!r}"
+                                for index, action in enumerate(workflow_actions, start=1)
+                            )
+                            confirmed_workflow = gui.confirm(
+                                "The proactive request needs separate approval for "
+                                "this exact workflow action sequence:\n" + action_lines
+                            )
+                            if not confirmed_workflow:
+                                response = "Workflow execution cancelled, Sir."
+                                speaker.speak(response)
+                                conversation.add_assistant(response)
+                                return True
+
+                            approval_token = approval_manager.issue(
+                                workflow_approval_payload
+                            )
+                        else:
+                            approval_token = approval_manager.issue(
+                                [dispatcher_intent]
+                            )
+
                     self.state_manager.transition("EXECUTING")
                     print("[COGNITIVE] State: EXECUTING")
                     response = dispatcher.execute(
-                        dispatcher_intent
+                        dispatcher_intent,
+                        approval_token=approval_token,
                     )
                     self.state_manager.add_execution_result({
                         "intent": dispatcher_intent,
@@ -355,7 +412,7 @@ class Brain:
                 
 
                 # -------------------------------------------------
-                # RECORD PROACTIVE REJECTION
+                                                # RECORD PROACTIVE REJECTION
                 # -------------------------------------------------
 
                 if (
@@ -514,6 +571,7 @@ class Brain:
             conversational_memory=self.conversational_memory,
             conversation_context=conversation_context,
         )
+
 
         original_command = command
 
@@ -717,6 +775,27 @@ class Brain:
                 "Bypassing Intent Engine and Planner."
             )
 
+            response = self.chat(
+                command,
+                already_saved=True
+            )
+
+            if response:
+
+                speaker.speak(
+                    response
+                )
+
+            return True
+
+        # =====================================================
+        # DIRECT AI / KNOWLEDGE PATH
+        # =====================================================
+
+        if self.is_conversational(
+            normalized
+        ):
+
             continuity = self.intent_continuity.resolve(
                 command,
                 "knowledge",
@@ -750,26 +829,6 @@ class Brain:
                     command=original_command
                 )
             )
-            response = self.chat(
-                command,
-                already_saved=True
-            )
-
-            if response:
-
-                speaker.speak(
-                    response
-                )
-
-            return True
-
-        # =====================================================
-        # DIRECT AI / KNOWLEDGE PATH
-        # =====================================================
-
-        if self.is_conversational(
-            normalized
-        ):
 
             print(
                 "[BRAIN] "
@@ -793,8 +852,6 @@ class Brain:
                 )
 
             return True
-
-        # =====================================================
         # DIRECT INTENT DETECTION
         # =====================================================
 
@@ -809,10 +866,6 @@ class Brain:
         print(
             f"[BRAIN] Detected Intent: {intent_name}"
         )
-
-        # =====================================================
-        # DIRECT INTENT EXECUTION
-        # =====================================================
 
         parameters = intent.get("parameters", {})
 
@@ -861,6 +914,7 @@ class Brain:
                 "->",
                 slot_result.get("intent"),
             )
+
         if slot_result.get("cancelled"):
             self.conversation_state.clear_pending_slots()
             print(
@@ -929,6 +983,11 @@ class Brain:
         )
 
         print("[COGNITIVE] Intent:", intent_name)
+
+        # =====================================================
+        # DIRECT INTENT EXECUTION
+        # =====================================================
+
         if (
             validation
             and not validation.get("valid")
@@ -964,21 +1023,38 @@ class Brain:
             )
 
             return True
-
         if intent_name != "unknown":
+            approval_token = None
+            approval_payload = None
 
             # -------------------------------------------------
             # DISRUPTIVE ACTION CONFIRMATION
             # -------------------------------------------------
 
-            if intent_name in (
-                "lock_computer",
-                "sleep",
-                "restart",
-                "shutdown",
-            ):
+            if intent_name in CONFIRMATION_INTENTS:
 
-                if intent_name == "lock_computer":
+                if intent_name == "run_workflow":
+                    approval_payload = dispatcher.approval_actions(intent)
+                    if not approval_payload:
+                        response = (
+                            "I cannot run that workflow because its action list "
+                            "is empty or contains an invalid action, Sir."
+                        )
+                        speaker.speak(response)
+                        conversation.add_assistant(response)
+                        return True
+
+                    workflow_actions = approval_payload[1]["workflow_actions"]
+                    action_lines = "\n".join(
+                        f"{index}. {action!r}"
+                        for index, action in enumerate(workflow_actions, start=1)
+                    )
+                    confirmation_message = (
+                        f"Approve running workflow '{intent.get('parameters', {}).get('workflow', '')}' "
+                        "with this exact action sequence?\n" + action_lines
+                    )
+
+                elif intent_name == "lock_computer":
 
                     confirmation_message = (
                         "Are you sure you want to "
@@ -999,11 +1075,18 @@ class Brain:
                         "restart the computer?"
                     )
 
-                else:
+                elif intent_name == "shutdown":
 
                     confirmation_message = (
                         "Are you sure you want to "
                         "shut down the computer?"
+                    )
+
+                else:
+
+                    action_label = intent_name.replace("_", " ")
+                    confirmation_message = (
+                        f"Are you sure you want to {action_label}?"
                     )
 
                 print(
@@ -1041,6 +1124,14 @@ class Brain:
                     "Confirmation accepted."
                 )
 
+                confirmation_authorization = authorize_intent(intent)
+
+                if confirmation_authorization["status"] == "CONFIRM":
+                    if approval_payload is None:
+                        approval_payload = dispatcher.approval_actions(intent)
+                    if approval_payload is not None:
+                        approval_token = approval_manager.issue(approval_payload)
+
             # -------------------------------------------------
             # EXECUTE INTENT
             # -------------------------------------------------
@@ -1049,7 +1140,8 @@ class Brain:
             print("[COGNITIVE] State: EXECUTING")
 
             response = dispatcher.execute(
-                intent
+                intent,
+                approval_token=approval_token,
             )
             self.state_manager.add_execution_result({
                 "intent": intent,
@@ -1461,6 +1553,11 @@ class Brain:
                         task
                     )
                 )
+                execution_error = getattr(
+                    dispatcher,
+                    "last_execution_error",
+                    None,
+                )
 
                 print(
                     "[BRAIN] Task response:",
@@ -1470,7 +1567,7 @@ class Brain:
                 self.state_manager.add_execution_result({
                     "task": task,
                     "response": response,
-                    "error": getattr(dispatcher, "last_execution_error", None),
+                    "error": execution_error,
                 })
 
                 if response:
@@ -1490,6 +1587,29 @@ class Brain:
                         conversation.add_assistant(
                             formatted_response
                         )
+
+                authorization_result = getattr(
+                    dispatcher,
+                    "last_authorization_result",
+                    None,
+                )
+
+                if (
+                    isinstance(authorization_result, dict)
+                    and authorization_result.get("status") != "ALLOW"
+                ):
+                    print(
+                        "[SECURITY] Stopping plan after an "
+                        "unauthorized or unapproved task."
+                    )
+                    break
+
+                if execution_error:
+                    print(
+                        "[BRAIN] Stopping plan after task execution failure:",
+                        repr(execution_error),
+                    )
+                    break
 
             return True
 
@@ -1673,14 +1793,28 @@ _original_process = Brain.process
 
 def _safe_process(
     self,
-    command
+    command,
+    source="unknown",
 ):
+
+    if not isinstance(source, str) or source not in {
+        "local_voice", "remote", "unknown"
+    }:
+        source = "unknown"
+
+    if getattr(self, "pending_confirmation", None) and source != "local_voice":
+        print(
+            "[BRAIN] Blocked non-local command before lifecycle handling:",
+            source,
+        )
+        return True
 
     try:
 
         result = _original_process(
             self,
-            command
+            command,
+            source=source,
         )
 
         state = self.state_manager.current()

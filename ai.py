@@ -644,6 +644,19 @@ class AI:
         self,
         prompt: str
     ) -> str:
+        return self._ask(prompt, use_openjarvis=True)
+
+    def ask_planning(
+        self,
+        prompt: str
+    ) -> str:
+        return self._ask(prompt, use_openjarvis=False)
+
+    def _ask(
+        self,
+        prompt: str,
+        use_openjarvis: bool
+    ) -> str:
 
         try:
 
@@ -795,34 +808,59 @@ GROUNDED RECOMMENDATION
             # ASK OLLAMA
             # ====================================================
 
-            response = ollama.chat(
+            if use_openjarvis:
 
-                model=self.MODEL,
+                try:
+                    from integrations.openjarvis.adapter import OpenJarvisAdapter
 
-                messages=messages,
+                    openjarvis_result = OpenJarvisAdapter().complete_messages(
+                        messages,
+                        max_tokens=num_predict,
+                        temperature=0.3,
+                    )
 
-                options={
-                    "temperature": 0.3,
-                    "num_predict": num_predict,
-                },
+                    if not openjarvis_result["ok"]:
+                        raise RuntimeError(openjarvis_result["error"])
 
-                keep_alive=self.KEEP_ALIVE,
-            )
+                    reply = openjarvis_result["text"]
 
-            print(
-                "Returned from Ollama"
-            )
+                    print("[AI] Response received from OpenJarvis.")
 
-            # ====================================================
-            # EXTRACT RESPONSE
-            # ====================================================
+                except Exception as openjarvis_error:
+                    print(
+                        "[AI] OpenJarvis unavailable; using Ollama fallback:",
+                        repr(openjarvis_error),
+                    )
 
-            reply = (
-                response
-                .message
-                .content
-                .strip()
-            )
+                    response = ollama.chat(
+                        model=self.MODEL,
+                        messages=messages,
+                        options={
+                            "temperature": 0.3,
+                            "num_predict": num_predict,
+                        },
+                        keep_alive=self.KEEP_ALIVE,
+                    )
+
+                    reply = response.message.content.strip()
+
+                    print("[AI] Response received from Ollama fallback.")
+
+            else:
+
+                print("[AI] Planning request routed to Ollama.")
+
+                response = ollama.chat(
+                    model=self.MODEL,
+                    messages=messages,
+                    options={
+                        "temperature": 0.3,
+                        "num_predict": num_predict,
+                    },
+                    keep_alive=self.KEEP_ALIVE,
+                )
+
+                reply = response.message.content.strip()
 
             # ====================================================
             # MEMORY PERSONALIZATION SAFETY NET
