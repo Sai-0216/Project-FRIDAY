@@ -199,7 +199,8 @@ class Memory:
             dict(note) for note in notes
             if isinstance(note, dict) and str(note.get("text", "")).strip()
         ]
-        return valid[-max(0, int(limit)):]
+        limit = max(0, int(limit))
+        return valid[-limit:] if limit else []
 
     def latest_remembered_note(self):
         notes = self.remembered_notes(limit=1)
@@ -517,7 +518,6 @@ def all_memory_command(
     for key, value in data.items():
         items.append(f"{key} is {value}")
 
-    notes = memory.remembered_notes(limit=3)
     for note in notes:
         items.append(f"you asked me to remember: {note['text']}")
 
