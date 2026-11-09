@@ -348,12 +348,19 @@ class FridayGUI:
         }
 
         finished = threading.Event()
+        expired = threading.Event()
+        dialog_ref = {"dialog": None}
 
         def show_dialog():
+
+            if expired.is_set():
+                finished.set()
+                return
 
             dialog = ctk.CTkToplevel(
                 self.root
             )
+            dialog_ref["dialog"] = dialog
 
             dialog.title(
                 "FRIDAY Confirmation"
@@ -408,6 +415,9 @@ class FridayGUI:
             def finish(
                 confirmed
             ):
+
+                if expired.is_set():
+                    confirmed = False
 
                 result["confirmed"] = confirmed
 
@@ -484,9 +494,39 @@ class FridayGUI:
                 show_dialog
             )
 
-            # Wait in the assistant thread.
-            # The GUI mainloop continues running normally.
-            finished.wait()
+            # Wait in the assistant thread, but never indefinitely.
+            # An expired confirmation always fails closed.
+            if not finished.wait(timeout=120):
+
+                expired.set()
+
+                def close_expired_dialog():
+
+                    dialog = dialog_ref.get("dialog")
+
+                    if dialog is not None:
+                        try:
+                            if dialog.winfo_exists():
+                                dialog.grab_release()
+                                dialog.destroy()
+                        except Exception:
+                            pass
+
+                    result["confirmed"] = False
+                    finished.set()
+
+                try:
+                    self.root.after(
+                        0,
+                        close_expired_dialog
+                    )
+                except Exception as e:
+                    print(
+                        "[GUI] Could not close expired confirmation:",
+                        repr(e)
+                    )
+
+                return False
 
             return bool(
                 result["confirmed"]

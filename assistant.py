@@ -274,7 +274,8 @@ class Assistant:
             )
 
             running = unified_runtime.process_command(
-                command
+                command,
+                source="local_voice",
             )
 
             # ========================================

@@ -477,7 +477,7 @@ CURRENT USER REQUEST:
                 "[PLANNER] Sending request to Ollama..."
             )
 
-            response = ai.ask(
+            response = ai.ask_planning(
                 prompt
             )
 

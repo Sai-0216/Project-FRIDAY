@@ -5,6 +5,8 @@ Desktop Automation
 
 import pyautogui
 
+from modules.execution_result import ExecutionResult
+
 from command_manager import manager
 
 
@@ -25,33 +27,33 @@ class Automation:
     def click(self):
         try:
             pyautogui.click()
-            return "Done."
+            return ExecutionResult("Done.", status="succeeded")
 
         except Exception as e:
             print("Click Error:", repr(e))
-            return "I couldn't click, Sir."
+            return ExecutionResult("I couldn't click, Sir.", status="failed")
 
     # ----------------------------------------
 
     def double_click(self):
         try:
             pyautogui.doubleClick()
-            return "Done."
+            return ExecutionResult("Done.", status="succeeded")
 
         except Exception as e:
             print("Double Click Error:", repr(e))
-            return "I couldn't double click, Sir."
+            return ExecutionResult("I couldn't double click, Sir.", status="failed")
 
     # ----------------------------------------
 
     def right_click(self):
         try:
             pyautogui.rightClick()
-            return "Done."
+            return ExecutionResult("Done.", status="succeeded")
 
         except Exception as e:
             print("Right Click Error:", repr(e))
-            return "I couldn't right click, Sir."
+            return ExecutionResult("I couldn't right click, Sir.", status="failed")
 
     # ========================================
     # SCROLL
@@ -60,22 +62,22 @@ class Automation:
     def scroll_up(self):
         try:
             pyautogui.scroll(500)
-            return "Done."
+            return ExecutionResult("Done.", status="succeeded")
 
         except Exception as e:
             print("Scroll Up Error:", repr(e))
-            return "I couldn't scroll up, Sir."
+            return ExecutionResult("I couldn't scroll up, Sir.", status="failed")
 
     # ----------------------------------------
 
     def scroll_down(self):
         try:
             pyautogui.scroll(-500)
-            return "Done."
+            return ExecutionResult("Done.", status="succeeded")
 
         except Exception as e:
             print("Scroll Down Error:", repr(e))
-            return "I couldn't scroll down, Sir."
+            return ExecutionResult("I couldn't scroll down, Sir.", status="failed")
 
     # ========================================
     # KEY NORMALIZATION
@@ -145,8 +147,8 @@ class Automation:
         if not key:
 
             return (
-                "Please tell me which "
-                "key to press, Sir."
+                ExecutionResult("Please tell me which "
+                "key to press, Sir.", status="failed")
             )
 
         try:
@@ -156,7 +158,7 @@ class Automation:
             )
 
             return (
-                f"Pressed {key}."
+                ExecutionResult(f"Pressed {key}.", status="succeeded")
             )
 
         except Exception as e:
@@ -167,8 +169,8 @@ class Automation:
             )
 
             return (
-                f"I don't know the key "
-                f"{key}, Sir."
+                ExecutionResult(f"I don't know the key "
+                f"{key}, Sir.", status="failed")
             )
 
     # ========================================
@@ -180,8 +182,8 @@ class Automation:
         if not keys:
 
             return (
-                "Please tell me which "
-                "hotkey to press, Sir."
+                ExecutionResult("Please tell me which "
+                "hotkey to press, Sir.", status="failed")
             )
 
         try:
@@ -200,7 +202,7 @@ class Automation:
             if not normalized_keys:
 
                 return (
-                    "The hotkey was empty, Sir."
+                    ExecutionResult("The hotkey was empty, Sir.", status="failed")
                 )
 
             print(
@@ -213,7 +215,7 @@ class Automation:
             )
 
             return (
-                f"Pressed {' + '.join(normalized_keys)}."
+                ExecutionResult(f"Pressed {' + '.join(normalized_keys)}.", status="succeeded")
             )
 
         except Exception as e:
@@ -224,8 +226,8 @@ class Automation:
             )
 
             return (
-                "I couldn't press that "
-                "hotkey, Sir."
+                ExecutionResult("I couldn't press that "
+                "hotkey, Sir.", status="failed")
             )
 
     # ========================================
@@ -239,7 +241,7 @@ class Automation:
         if not text:
 
             return (
-                "There is no text to type, Sir."
+                ExecutionResult("There is no text to type, Sir.", status="failed")
             )
 
         try:
@@ -255,7 +257,7 @@ class Automation:
             )
 
             return (
-                "Typing completed."
+                ExecutionResult("Typing completed.", status="succeeded")
             )
 
         except Exception as e:
@@ -266,7 +268,7 @@ class Automation:
             )
 
             return (
-                "I couldn't type that text, Sir."
+                ExecutionResult("I couldn't type that text, Sir.", status="failed")
             )
 
 

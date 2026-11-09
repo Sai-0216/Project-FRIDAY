@@ -124,14 +124,22 @@ class UnifiedRuntime:
 
         return self.status()
 
-    def process_command(self, command):
+    def process_command(self, command, source="unknown"):
         if not self.running:
             return None
 
         if not isinstance(command, str) or not command.strip():
             return None
 
-        return self.brain.process(command.strip())
+        if not isinstance(source, str) or source not in {
+            "local_voice", "remote", "unknown"
+        }:
+            source = "unknown"
+
+        return self.brain.process(
+            command.strip(),
+            source=source,
+        )
 
     def process_event(self, event):
         if not self.running:

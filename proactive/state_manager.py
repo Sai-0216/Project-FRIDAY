@@ -37,24 +37,56 @@ class StateManager:
         results = self.state.execution_results or []
         if not results:
             return "completed"
+
+        successful_statuses = {"succeeded", "already_satisfied"}
+        failed_statuses = {
+            "failed", "error", "denied", "cancelled",
+            "blocked", "skipped", "unknown",
+        }
+
         failures = 0
         successes = 0
+
         for result in results:
             if isinstance(result, dict):
-                if result.get("error") or result.get("status") in ("failed", "error"):
+                status = result.get("status")
+                error = result.get("error")
+
+                if error:
                     failures += 1
-                else:
+                elif status in successful_statuses:
                     successes += 1
-            elif result is None:
+                elif status in failed_statuses:
+                    failures += 1
+                elif (
+                    status is None
+                    and "error" in result
+                    and result.get("error") is None
+                ):
+                    # Backward compatibility for existing result dictionaries.
+                    successes += 1
+                else:
+                    failures += 1
+                continue
+
+            status = getattr(result, "status", None)
+            error = getattr(result, "error", None)
+
+            if error:
                 failures += 1
-            else:
+            elif status in successful_statuses:
                 successes += 1
+            else:
+                # Unstructured strings and unknown result types fail closed.
+                failures += 1
+
         if failures and successes:
             outcome = "partial"
         elif failures:
             outcome = "failed"
         else:
             outcome = "completed"
+
         self.state.evaluation = {
             "outcome": outcome,
             "total_results": len(results),
@@ -62,6 +94,7 @@ class StateManager:
             "failures": failures,
         }
         return outcome
+
 
     def record_learning(self, outcome=None):
         if outcome is None:

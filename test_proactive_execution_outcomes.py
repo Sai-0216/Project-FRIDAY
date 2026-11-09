@@ -27,7 +27,7 @@ class TestProactiveExecutionOutcomes(unittest.TestCase):
 
         fake_dispatcher = Mock()
 
-        def fail_execution(intent):
+        def fail_execution(intent, *, approval_token=None):
             fake_dispatcher.last_execution_error = (
                 "RuntimeError('proactive action failed')"
             )
@@ -43,7 +43,7 @@ class TestProactiveExecutionOutcomes(unittest.TestCase):
              patch("brain.response_manager.command", side_effect=lambda value: value), \
              patch("brain.speaker.speak"), \
              patch("builtins.print"):
-            result = brain.process("yes")
+            result = brain.process("yes", source="local_voice")
 
         self.assertTrue(result)
         self.assertIsNone(brain.pending_confirmation)
@@ -86,7 +86,7 @@ class TestProactiveExecutionOutcomes(unittest.TestCase):
              patch("brain.dispatcher", fake_dispatcher), \
              patch("brain.speaker.speak"), \
              patch("builtins.print"):
-            result = brain.process("no")
+            result = brain.process("no", source="local_voice")
 
         self.assertTrue(result)
         self.assertIsNone(brain.pending_confirmation)
@@ -115,10 +115,72 @@ class TestProactiveExecutionOutcomes(unittest.TestCase):
              patch("brain.proactive_outcome_memory.record") as record_outcome, \
              patch("brain.speaker.speak"), \
              patch("builtins.print"):
-            result = brain.process("no")
+            result = brain.process("no", source="local_voice")
 
         self.assertTrue(result)
         self.assertIsNone(brain.pending_confirmation)
         record_outcome.assert_not_called()
+
+    def test_remote_yes_cannot_approve_pending_action(self):
+        brain = Brain.__new__(Brain)
+        brain.state_manager = StateManager()
+        brain.conversation_state = Mock()
+        brain.pending_confirmation = {
+            "action": "CONFIRM",
+            "intent": "test_action",
+            "parameters": {},
+        }
+
+        with patch("builtins.print"):
+            result = brain.process("yes", source="remote")
+
+        self.assertTrue(result)
+        self.assertIsNotNone(brain.pending_confirmation)
+
+    def test_unknown_source_cannot_reject_pending_action(self):
+        brain = Brain.__new__(Brain)
+        brain.state_manager = StateManager()
+        brain.conversation_state = Mock()
+        brain.pending_confirmation = {
+            "action": "CONFIRM",
+            "intent": "test_action",
+            "parameters": {},
+        }
+
+        with patch("builtins.print"):
+            result = brain.process("no", source="unknown")
+
+        self.assertTrue(result)
+        self.assertIsNotNone(brain.pending_confirmation)
+
+    def test_nonlocal_commands_are_blocked_while_confirmation_pending(self):
+        for source in ("remote", "unknown"):
+            with self.subTest(source=source):
+                brain = Brain.__new__(Brain)
+                brain.state_manager = StateManager()
+                brain.conversation_state = Mock()
+                pending = {
+                    "action": "CONFIRM",
+                    "intent": "test_action",
+                    "parameters": {},
+                }
+                brain.pending_confirmation = pending
+
+                with patch.object(
+                    brain.state_manager, "begin"
+                ) as begin_state, patch.object(
+                    brain.conversation_state, "begin_turn"
+                ) as begin_turn, patch("builtins.print"):
+                    result = brain.process(
+                        "open the browser",
+                        source=source,
+                    )
+
+                self.assertTrue(result)
+                self.assertIs(brain.pending_confirmation, pending)
+                begin_state.assert_not_called()
+                begin_turn.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

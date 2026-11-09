@@ -159,7 +159,7 @@ class TestPlannedExecutionOutcomes(unittest.TestCase):
         }
 
         with patch("brain._original_process",
-                   side_effect=lambda instance, command: instance.execute_plan(plan)), \
+                   side_effect=lambda instance, command, source='unknown': instance.execute_plan(plan)), \
              patch("brain.dispatcher", fake_dispatcher), \
              patch("brain.response_manager.command", side_effect=lambda value: value), \
              patch("brain.speaker.speak"), \

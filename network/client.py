@@ -74,8 +74,29 @@ class FridayDeviceClient:
             return
 
         try:
-            self.runtime.process_command(command)
-            result = build_result(self.device_id, command, self.runtime)
+            state_manager = getattr(self.runtime, "state_manager", None)
+            previous_snapshot = {}
+
+            if state_manager is not None:
+                snapshot_method = getattr(state_manager, "snapshot", None)
+                if callable(snapshot_method):
+                    candidate = snapshot_method()
+                    if isinstance(candidate, dict):
+                        previous_snapshot = candidate
+
+            previous_started_at = previous_snapshot.get("started_at")
+
+            self.runtime.process_command(
+                command,
+                source="remote",
+            )
+
+            result = build_result(
+                self.device_id,
+                command,
+                self.runtime,
+                previous_started_at=previous_started_at,
+            )
             await websocket.send(json.dumps(result))
         except Exception as exc:
             await websocket.send(json.dumps({

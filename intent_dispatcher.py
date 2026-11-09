@@ -6,6 +6,8 @@ Intent Dispatcher
 import webbrowser
 
 from speech import speaker
+from security.authorization import authorize_intent
+from security.approval_manager import ApprovalManager
 
 from modules.volume import volume
 from modules.brightness import brightness
@@ -28,17 +30,93 @@ from decision_recall import decision_recall
 from proactive.reasoning_quality import ReasoningQuality
 from proactive.decision_quality import DecisionQuality
 from proactive.reasoning_feedback import ReasoningFeedback
-from proactive.self_correction import SelfCorrection
+from proactive.self_correction import SelfCorrection, SelfCorrectionStore
 from proactive.reasoning_strategy import ReasoningStrategy
+
+
+approval_manager = ApprovalManager()
 
 
 class IntentDispatcher:
 
-    def execute(self, intent):
+    def __init__(self, approval_manager_instance=None):
+        self.approval_manager = (
+            approval_manager_instance
+            if approval_manager_instance is not None
+            else approval_manager
+        )
+        self.last_execution_error = None
+        self.last_authorization_result = None
+
+    def approval_actions(self, intent):
+        """Build the exact approval payload for a confirmation prompt."""
+        if not isinstance(intent, dict):
+            return None
+        if intent.get("intent") == "run_workflow":
+            params = intent.get("parameters", {})
+            if not isinstance(params, dict):
+                return None
+            snapshot = workflows.get_approved_workflow_snapshot(
+                params.get("workflow", "")
+            )
+            if not snapshot:
+                return None
+            return [intent, {"workflow_actions": snapshot}]
+        return [intent]
+
+    def execute(self, intent, *, approval_token=None):
 
         self.last_execution_error = None
+        self.last_authorization_result = None
 
         try:
+            authorization = authorize_intent(intent)
+
+            if authorization["status"] == "DENY":
+                self.last_authorization_result = authorization
+                self.last_execution_error = (
+                    "AuthorizationError: "
+                    + str(authorization.get("reason", "Intent denied"))
+                )
+                print(
+                    "[SECURITY] Dispatcher denied intent:",
+                    authorization["reason"],
+                )
+                return (
+                    "I can't execute that action because "
+                    "it failed authorization checks."
+                )
+
+            if authorization["status"] == "CONFIRM" and intent.get("intent") != "run_workflow":
+                approved = self.approval_manager.consume(
+                    approval_token,
+                    self.approval_actions(intent),
+                )
+
+                if not approved:
+                    self.last_authorization_result = authorization
+                    self.last_execution_error = (
+                        "AuthorizationError: fresh trusted confirmation required"
+                    )
+                    print(
+                        "[SECURITY] Confirmation missing, invalid, "
+                        "expired, replayed, or bound to another action."
+                    )
+                    return (
+                        "That action requires a fresh, trusted "
+                        "confirmation before it can run."
+                    )
+
+                authorization = {
+                    "status": "ALLOW",
+                    "allowed": True,
+                    "requires_confirmation": False,
+                    "reason": "Trusted action-bound approval consumed",
+                }
+
+            self.last_authorization_result = authorization
+            if intent.get("intent") == "run_workflow":
+                return self._execute(intent, approval_token=approval_token)
             return self._execute(intent)
 
         except Exception as e:
@@ -59,7 +137,7 @@ class IntentDispatcher:
     # INTERNAL INTENT EXECUTION
     # ========================================
 
-    def _execute(self, intent):
+    def _execute(self, intent, *, approval_token=None):
 
         name = intent.get(
             "intent",
@@ -102,7 +180,10 @@ class IntentDispatcher:
                     )
 
                 return workflows.run(
-                    workflow_name
+                    workflow_name,
+                    approval_token=approval_token,
+                    approval_manager=self.approval_manager,
+                    approval_intent=intent,
                 )
 
             case "create_workflow":
@@ -297,23 +378,10 @@ class IntentDispatcher:
 
                     return "There are no interrupted tasks to resume, Sir."
 
-                results = []
-
-                for task in tasks:
-
-                    task_id = task.get("task_id")
-
-                    if not task_id:
-                        continue
-
-                    result = workflows.run_task(task_id)
-                    results.append(result)
-
-                if not results:
-
-                    return "I found interrupted tasks, but none could be resumed, Sir."
-
-                return "\n".join(str(result) for result in results if result)
+                return (
+                    "Bulk resume is disabled. Each interrupted task requires "
+                    "a fresh approval showing its exact remaining actions, Sir."
+                )
 
             case "retry_task":
 
@@ -323,26 +391,10 @@ class IntentDispatcher:
 
                     return "There are no failed tasks to retry, Sir."
 
-                results = []
-
-                for task in tasks:
-
-                    task_id = task.get("task_id")
-
-                    if not task_id:
-                        continue
-
-                    result = workflows.auto_retry_task(task_id)
-                    if result:
-                        results.append("Retry prepared successfully, Sir.")
-                    else:
-                        results.append("I could not retry that task, Sir. The maximum retry limit has been reached.")
-
-                if not results:
-
-                    return "I found failed tasks, but none could be retried, Sir."
-
-                return "\n".join(str(result) for result in results if result)
+                return (
+                    "Bulk retry is disabled. Each failed task requires a "
+                    "fresh approval showing its exact remaining actions, Sir."
+                )
 
             case "verify_decision":
 
