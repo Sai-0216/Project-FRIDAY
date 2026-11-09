@@ -4,6 +4,7 @@ Memory Module
 """
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from command_manager import manager
@@ -169,12 +170,53 @@ class Memory:
         return True
 
     # ========================================
+    # REMEMBERED NOTES
+    # ========================================
+
+    def remember_note(self, text, limit=20):
+        text = str(text).strip()
+        if not text:
+            return False
+
+        data = self.load()
+        notes = data.get("_remembered_notes", [])
+        if not isinstance(notes, list):
+            notes = []
+
+        notes.append({
+            "text": text,
+            "timestamp": datetime.now().isoformat(),
+        })
+        data["_remembered_notes"] = notes[-max(1, int(limit)):]
+        self.save(data)
+        return True
+
+    def remembered_notes(self, limit=20):
+        notes = self.load().get("_remembered_notes", [])
+        if not isinstance(notes, list):
+            return []
+        valid = [
+            dict(note) for note in notes
+            if isinstance(note, dict) and str(note.get("text", "")).strip()
+        ]
+        return valid[-max(0, int(limit)):]
+
+    def latest_remembered_note(self):
+        notes = self.remembered_notes(limit=1)
+        return notes[-1]["text"] if notes else None
+
+    # ========================================
     # ALL MEMORIES
     # ========================================
 
     def all(self):
-
-        return self.load()
+        # Notes have their own retrieval API and must not be treated as
+        # key/value profile facts by MemoryContext or recommendation code.
+        return {
+            key: value
+            for key, value in self.load().items()
+            if key != "_remembered_notes"
+        }
 
 
 # ============================================
@@ -278,11 +320,9 @@ def remember_command(
         )
 
     else:
-
-        return (
-            "Tell me what to remember "
-            "using 'is'."
-        )
+        if memory.remember_note(text):
+            return f"I'll remember that you said: {text}."
+        return "I couldn't save that note."
 
     key = clean_key(
         key
@@ -478,16 +518,13 @@ def all_memory_command(
     items = []
 
     for key, value in data.items():
+        items.append(f"{key} is {value}")
 
-        items.append(
-            f"{key} is {value}"
-        )
+    notes = memory.remembered_notes(limit=3)
+    for note in notes:
+        items.append(f"you asked me to remember: {note['text']}")
 
-    return (
-        "I remember: "
-        + ", ".join(items)
-        + "."
-    )
+    return "I remember: " + "; ".join(items) + "."
 
 
 # ============================================
