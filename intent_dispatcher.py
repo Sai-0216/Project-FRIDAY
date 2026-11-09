@@ -1021,6 +1021,9 @@ class IntentDispatcher:
                             f"{key} is {value}."
                         )
 
+                if memory.remember_note(text):
+                    return f"I'll remember that you said: {text}."
+
                 return (
                     "Please tell me what you "
                     "want me to remember."
