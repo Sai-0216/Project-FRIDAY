@@ -507,13 +507,10 @@ def all_memory_command(
 ):
 
     data = memory.all()
+    notes = memory.remembered_notes(limit=3)
 
-    if not data:
-
-        return (
-            "I don't have any "
-            "saved memories."
-        )
+    if not data and not notes:
+        return "I don't have any saved memories."
 
     items = []
 
@@ -523,6 +520,9 @@ def all_memory_command(
     notes = memory.remembered_notes(limit=3)
     for note in notes:
         items.append(f"you asked me to remember: {note['text']}")
+
+    if not items:
+        return "I don't have any saved memories."
 
     return "I remember: " + "; ".join(items) + "."
 
