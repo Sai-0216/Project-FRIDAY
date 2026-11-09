@@ -22,3 +22,16 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+# Local FRIDAY runtime data and personal files
+/data/
+
+# Generated test cache
+.pytest_cache/
+
+# New screenshots (already-tracked screenshots remain tracked)
+screenshots/
+
+# Generated test audio
+test.mp3
+direct_test.mp3
+edge_test.mp3
