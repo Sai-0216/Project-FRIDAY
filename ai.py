@@ -640,11 +640,61 @@ class AI:
     # ASK
     # ============================================================
 
+    def _format_fused_context(self, fused_context) -> str:
+        """Format the existing fused conversation snapshot for the LLM."""
+        if not isinstance(fused_context, dict) or not fused_context:
+            return ""
+
+        sections = []
+        topic = fused_context.get("topic", {})
+        if isinstance(topic, dict):
+            current = str(topic.get("current") or "").strip()
+            previous = str(topic.get("previous") or "").strip()
+            if current:
+                sections.append(f"Current topic: {current}")
+            if previous and previous != current:
+                sections.append(f"Previous topic: {previous}")
+
+        intent = fused_context.get("intent", {})
+        if isinstance(intent, dict):
+            current_intent = str(intent.get("current") or "").strip()
+            if current_intent:
+                sections.append(f"Current intent: {current_intent}")
+
+        reference = fused_context.get("reference", {})
+        if isinstance(reference, dict) and reference.get("detected"):
+            reference_type = str(reference.get("type") or "contextual").strip()
+            target = str(reference.get("target") or "").strip()
+            if target:
+                sections.append(f"Resolved reference ({reference_type}): {target}")
+
+        recent_turns = fused_context.get("recent_turns", [])
+        if isinstance(recent_turns, list):
+            rendered_turns = []
+            for turn in recent_turns[-5:]:
+                if not isinstance(turn, dict):
+                    continue
+                user_message = str(turn.get("user_message") or "").strip()
+                assistant_message = str(turn.get("assistant_message") or "").strip()
+                if user_message:
+                    rendered_turns.append(f"User: {user_message[:350]}")
+                if assistant_message:
+                    rendered_turns.append(f"FRIDAY: {assistant_message[:350]}")
+            if rendered_turns:
+                sections.append("Recent structured conversation:\n" + "\n".join(rendered_turns))
+
+        return "\n".join(sections)[:3000]
+
     def ask(
         self,
-        prompt: str
+        prompt: str,
+        fused_context=None,
     ) -> str:
-        return self._ask(prompt, use_openjarvis=True)
+        return self._ask(
+            prompt,
+            use_openjarvis=True,
+            fused_context=fused_context,
+        )
 
     def ask_planning(
         self,
@@ -655,7 +705,8 @@ class AI:
     def _ask(
         self,
         prompt: str,
-        use_openjarvis: bool
+        use_openjarvis: bool,
+        fused_context=None,
     ) -> str:
 
         try:
@@ -683,6 +734,10 @@ class AI:
                     prompt
                 )
             )
+
+            fused_context_text = self._format_fused_context(fused_context)
+            if fused_context_text:
+                print("[AI] Structured conversational context loaded.")
 
             # ====================================================
             # PERSONALIZATION GUIDANCE
@@ -758,6 +813,12 @@ GROUNDED RECOMMENDATION
 ========================================
 
 {recommendation_context if recommendation_context else "No grounded recommendation is available for this request."}
+
+========================================
+STRUCTURED CONVERSATION CONTEXT
+========================================
+
+{fused_context_text if fused_context_text else "No additional structured conversation context is available."}
 """
 
             # ====================================================
