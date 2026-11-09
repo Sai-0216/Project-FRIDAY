@@ -1678,6 +1678,25 @@ class Brain:
                 )
             )
 
+            # Explicit recall of the most recent free-form note.
+            if lookup in {
+                "what did i just say to remember",
+                "what did i ask you to remember",
+                "what did i tell you to remember",
+                "what was the thing i asked you to remember",
+                "what did i ask you to remember just now",
+            }:
+                note = memory.latest_remembered_note()
+                response = (
+                    f"You asked me to remember that {note}."
+                    if note
+                    else "I don't have a recently saved note to recall."
+                )
+                response = response_manager.ai(response)
+                conversation.add_assistant(response)
+                self._remember_conversational_turn(command, response)
+                return response
+
             memory_key = None
 
             for prefix in (
@@ -1750,7 +1769,8 @@ class Brain:
             )
 
             response = ai.ask(
-                command
+                command,
+                fused_context=self.fused_context,
             )
 
             response = (
